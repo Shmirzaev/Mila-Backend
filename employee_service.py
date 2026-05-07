@@ -21,6 +21,22 @@ async def _connect() -> asyncpg.Connection:
     return await asyncpg.connect(_require_database_url())
 
 
+def _employee_summary_from_row(row: asyncpg.Record) -> dict:
+    return {
+        "employee_no": row["employee_no"],
+        "full_name": row["full_name"],
+        "short_name": row["short_name"],
+        "position": row["position"],
+        "department_key": row["department_key"],
+        "department_title": row["department_title"],
+        "phone": row["phone"],
+        "telegram_username": row["telegram_username"],
+        "telegram_chat_id": row["telegram_chat_id"],
+        "access_level": row["access_level"],
+        "status": row["status"],
+    }
+
+
 async def init_employee_pool() -> None:
     """
     Compatibility function.
@@ -29,6 +45,39 @@ async def init_employee_pool() -> None:
     conn = await _connect()
     try:
         await conn.execute("SELECT 1")
+    finally:
+        await conn.close()
+
+
+async def get_all_active_employees_data(limit: int = 200) -> list[dict]:
+    conn = await _connect()
+
+    try:
+        rows = await conn.fetch(
+            """
+            SELECT
+                e.employee_no,
+                e.full_name,
+                e.short_name,
+                e.position,
+                e.phone,
+                e.telegram_username,
+                e.telegram_chat_id,
+                e.access_level,
+                e.status,
+                d.department_key,
+                d.title AS department_title
+            FROM employees e
+            LEFT JOIN departments d ON d.id = e.department_id
+            WHERE e.status = 'active'
+            ORDER BY e.employee_no NULLS LAST, e.full_name
+            LIMIT $1
+            """,
+            int(limit),
+        )
+
+        return [_employee_summary_from_row(row) for row in rows]
+
     finally:
         await conn.close()
 
@@ -315,58 +364,12 @@ async def list_department_employees(department_key: str) -> str:
 
 
 async def list_all_active_employees(limit: int = 200) -> str:
-    conn = await _connect()
+    result = await get_all_active_employees_data(limit=limit)
 
-    try:
-        rows = await conn.fetch(
-            """
-            SELECT
-                e.employee_no,
-                e.full_name,
-                e.short_name,
-                e.position,
-                e.phone,
-                e.telegram_username,
-                e.telegram_chat_id,
-                e.access_level,
-                e.status,
-                d.department_key,
-                d.title AS department_title
-            FROM employees e
-            LEFT JOIN departments d ON d.id = e.department_id
-            WHERE e.status = 'active'
-            ORDER BY e.employee_no NULLS LAST, e.full_name
-            LIMIT $1
-            """,
-            int(limit),
-        )
+    if not result:
+        return "No active employees found."
 
-        if not rows:
-            return "No active employees found."
-
-        result = []
-
-        for row in rows:
-            result.append(
-                {
-                    "employee_no": row["employee_no"],
-                    "full_name": row["full_name"],
-                    "short_name": row["short_name"],
-                    "position": row["position"],
-                    "department_key": row["department_key"],
-                    "department_title": row["department_title"],
-                    "phone": row["phone"],
-                    "telegram_username": row["telegram_username"],
-                    "telegram_chat_id": row["telegram_chat_id"],
-                    "access_level": row["access_level"],
-                    "status": row["status"],
-                }
-            )
-
-        return json.dumps(result, ensure_ascii=False, indent=2)
-
-    finally:
-        await conn.close()
+    return json.dumps(result, ensure_ascii=False, indent=2)
 
 
 async def list_telegram_targets() -> str:

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'screens/home_screen.dart';
+import 'services/employee_directory_service.dart';
 import 'services/livekit_service.dart';
 import 'services/settings_service.dart';
 import 'services/token_service.dart';
@@ -11,6 +12,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   final appState = AppState(
+    employeeDirectoryService: EmployeeDirectoryService(),
     settingsService: SettingsService(),
     tokenService: TokenService(),
     liveKitService: LiveKitService(),
@@ -93,10 +95,7 @@ class MilaApp extends StatelessWidget {
         side: BorderSide.none,
         backgroundColor: const Color(0xFFEDEDEA),
         selectedColor: blue500.withValues(alpha: 0.12),
-        labelStyle: const TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
-        ),
+        labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(

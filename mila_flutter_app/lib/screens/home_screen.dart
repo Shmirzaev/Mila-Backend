@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../main.dart';
+import '../models/employee_record.dart';
 import '../state/app_state.dart';
 import 'settings_screen.dart';
 
@@ -16,7 +17,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  bool _showDetailsPanel = false;
+  bool _showEmployeePanel = false;
 
   @override
   void initState() {
@@ -42,29 +43,35 @@ class _HomeScreenState extends State<HomeScreen> {
           : palette.lightBackground,
       body: SafeArea(
         child: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 280),
+          duration: const Duration(milliseconds: 260),
           switchInCurve: Curves.easeOutCubic,
           switchOutCurve: Curves.easeInCubic,
           child: inCall
-              ? _CallExperience(
-                  key: const ValueKey<String>('call'),
+              ? _CallScreen(
+                  key: const ValueKey<String>('call-screen'),
                   appState: appState,
-                  showDetailsPanel: _showDetailsPanel,
+                  showEmployeePanel: _showEmployeePanel,
                   onDisconnect: context.read<AppState>().disconnect,
                   onOpenSettings: () => _openSettings(context),
+                  onRefreshEmployees: context
+                      .read<AppState>()
+                      .refreshEmployeeDirectory,
                   onToggleCamera: context.read<AppState>().toggleCamera,
-                  onToggleDetails: () {
+                  onToggleEmployeePanel: () {
                     setState(() {
-                      _showDetailsPanel = !_showDetailsPanel;
+                      _showEmployeePanel = !_showEmployeePanel;
                     });
                   },
                   onToggleMicrophone: context.read<AppState>().toggleMicrophone,
                 )
-              : _ConnectExperience(
-                  key: const ValueKey<String>('connect'),
+              : _ConnectScreen(
+                  key: const ValueKey<String>('connect-screen'),
                   appState: appState,
                   onConnect: context.read<AppState>().connect,
                   onOpenSettings: () => _openSettings(context),
+                  onRefreshEmployees: context
+                      .read<AppState>()
+                      .refreshEmployeeDirectory,
                 ),
         ),
       ),
@@ -78,22 +85,24 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-class _ConnectExperience extends StatelessWidget {
-  const _ConnectExperience({
+class _ConnectScreen extends StatelessWidget {
+  const _ConnectScreen({
     required this.appState,
     required this.onConnect,
     required this.onOpenSettings,
+    required this.onRefreshEmployees,
     super.key,
   });
 
   final AppState appState;
   final Future<void> Function() onConnect;
   final VoidCallback onOpenSettings;
+  final Future<void> Function() onRefreshEmployees;
 
   @override
   Widget build(BuildContext context) {
+    final palette = Theme.of(context).extension<MilaPalette>()!;
     final theme = Theme.of(context);
-    final palette = theme.extension<MilaPalette>()!;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -103,14 +112,11 @@ class _ConnectExperience extends StatelessWidget {
           children: <Widget>[
             Positioned(
               top: 18,
-              left: compact ? 18 : 28,
-              right: compact ? 18 : 28,
+              left: compact ? 18 : 24,
+              right: compact ? 18 : 24,
               child: Row(
                 children: <Widget>[
-                  _ToneChip(
-                    label: 'MILA ${appState.platformLabel.toUpperCase()}',
-                    dark: false,
-                  ),
+                  const _ToneChip(label: 'MILA ANDROID', dark: false),
                   const Spacer(),
                   _StatusChip(
                     label: appState.statusLabel.toUpperCase(),
@@ -133,36 +139,36 @@ class _ConnectExperience extends StatelessWidget {
               child: SingleChildScrollView(
                 padding: EdgeInsets.fromLTRB(
                   compact ? 20 : 28,
-                  84,
+                  88,
                   compact ? 20 : 28,
                   28,
                 ),
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 860),
+                  constraints: const BoxConstraints(maxWidth: 980),
                   child: Column(
                     children: <Widget>[
                       DecoratedBox(
                         decoration: BoxDecoration(
                           color: Colors.white,
-                          borderRadius: BorderRadius.circular(32),
+                          borderRadius: BorderRadius.circular(30),
                           border: Border.all(color: palette.lightOutline),
                           boxShadow: const <BoxShadow>[
                             BoxShadow(
-                              color: Color(0x0C111111),
-                              blurRadius: 40,
-                              offset: Offset(0, 20),
+                              color: Color(0x0A111111),
+                              blurRadius: 36,
+                              offset: Offset(0, 18),
                             ),
                           ],
                         ),
                         child: Padding(
                           padding: EdgeInsets.symmetric(
-                            horizontal: compact ? 22 : 36,
-                            vertical: compact ? 28 : 40,
+                            horizontal: compact ? 24 : 36,
+                            vertical: compact ? 30 : 40,
                           ),
                           child: Column(
                             children: <Widget>[
-                              _MilaAppMark(size: compact ? 108 : 126),
-                              const SizedBox(height: 26),
+                              const _MilaAppMark(size: 112),
+                              const SizedBox(height: 22),
                               Text(
                                 'Start a call to speak with MILA.',
                                 textAlign: TextAlign.center,
@@ -172,40 +178,17 @@ class _ConnectExperience extends StatelessWidget {
                               ),
                               const SizedBox(height: 12),
                               Text(
-                                'This Flutter client now follows the same voice-assistant UI direction as the Android reference: a minimal connect screen, a dark assistant stage, and a floating call control bar.',
+                                'Your LiveKit room is ready, your backend is bundled into the APK, and the employee directory is synced from the same server.',
                                 textAlign: TextAlign.center,
                                 style: theme.textTheme.bodyLarge?.copyWith(
-                                  color: const Color(0xFF4C4C48),
+                                  color: const Color(0xFF4B4B49),
                                 ),
-                              ),
-                              const SizedBox(height: 20),
-                              Wrap(
-                                spacing: 10,
-                                runSpacing: 10,
-                                alignment: WrapAlignment.center,
-                                children: <Widget>[
-                                  _InfoPill(
-                                    icon: Icons.public,
-                                    label: 'WEB',
-                                    dark: false,
-                                  ),
-                                  _InfoPill(
-                                    icon: Icons.android,
-                                    label: 'ANDROID',
-                                    dark: false,
-                                  ),
-                                  _InfoPill(
-                                    icon: Icons.phone_iphone,
-                                    label: 'IOS',
-                                    dark: false,
-                                  ),
-                                ],
                               ),
                               if (appState.errorMessage != null) ...<Widget>[
                                 const SizedBox(height: 18),
                                 _ErrorBanner(message: appState.errorMessage!),
                               ],
-                              const SizedBox(height: 26),
+                              const SizedBox(height: 24),
                               ConstrainedBox(
                                 constraints: const BoxConstraints(
                                   maxWidth: 340,
@@ -225,7 +208,7 @@ class _ConnectExperience extends StatelessWidget {
                                             width: 18,
                                             height: 18,
                                             child: CircularProgressIndicator(
-                                              strokeWidth: 2.1,
+                                              strokeWidth: 2,
                                               valueColor:
                                                   AlwaysStoppedAnimation<Color>(
                                                     Colors.white,
@@ -245,83 +228,40 @@ class _ConnectExperience extends StatelessWidget {
                                 ),
                               ),
                               const SizedBox(height: 14),
-                              TextButton.icon(
-                                onPressed: onOpenSettings,
-                                icon: const Icon(Icons.tune),
-                                label: const Text('Configure Backend URL'),
+                              Wrap(
+                                spacing: 10,
+                                runSpacing: 10,
+                                alignment: WrapAlignment.center,
+                                children: <Widget>[
+                                  _InfoPill(
+                                    icon: Icons.link,
+                                    label: appState.hasBackendBaseUrl
+                                        ? 'BACKEND READY'
+                                        : 'SET BACKEND',
+                                    dark: false,
+                                  ),
+                                  _InfoPill(
+                                    icon: Icons.groups_2_outlined,
+                                    label: appState.hasEmployeeDirectory
+                                        ? '${appState.employeeDirectory.length} EMPLOYEES'
+                                        : 'STAFF SYNC',
+                                    dark: false,
+                                  ),
+                                ],
                               ),
                             ],
                           ),
                         ),
                       ),
-                      const SizedBox(height: 18),
-                      Wrap(
-                        spacing: 18,
-                        runSpacing: 18,
-                        alignment: WrapAlignment.center,
-                        children: <Widget>[
-                          _ConnectInfoCard(
-                            title: 'Saved backend',
-                            width: compact ? double.infinity : 410,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: <Widget>[
-                                Text(
-                                  appState.hasBackendBaseUrl
-                                      ? appState.backendBaseUrl
-                                      : 'No backend URL saved yet. Open Settings and enter your token server base URL.',
-                                  style: theme.textTheme.bodyLarge?.copyWith(
-                                    fontFamily: appState.hasBackendBaseUrl
-                                        ? 'monospace'
-                                        : null,
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                Wrap(
-                                  spacing: 10,
-                                  runSpacing: 10,
-                                  children: <Widget>[
-                                    _InfoPill(
-                                      icon: Icons.link,
-                                      label: appState.participantSource,
-                                      dark: false,
-                                    ),
-                                    _InfoPill(
-                                      icon: Icons.person_outline,
-                                      label: appState.participantIdentity,
-                                      dark: false,
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                          _ConnectInfoCard(
-                            title: 'Development URLs',
-                            width: compact ? double.infinity : 410,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: const <Widget>[
-                                _HintLine(
-                                  title: 'Web on same machine',
-                                  value: 'http://127.0.0.1:8000',
-                                ),
-                                _HintLine(
-                                  title: 'Android emulator',
-                                  value: 'http://10.0.2.2:8000',
-                                ),
-                                _HintLine(
-                                  title: 'Phone on Wi-Fi',
-                                  value: 'http://YOUR_PC_LAN_IP:8000',
-                                ),
-                                _HintLine(
-                                  title: 'Production',
-                                  value: 'https://my-domain.com',
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
+                      const SizedBox(height: 20),
+                      _EmployeeDirectoryPanel(
+                        title: 'Employee Directory',
+                        subtitle: appState.hasBackendBaseUrl
+                            ? 'Synced from ${appState.backendBaseUrl}'
+                            : 'Save a backend URL in Settings to load employees.',
+                        appState: appState,
+                        dark: false,
+                        onRefresh: onRefreshEmployees,
                       ),
                     ],
                   ),
@@ -335,24 +275,26 @@ class _ConnectExperience extends StatelessWidget {
   }
 }
 
-class _CallExperience extends StatelessWidget {
-  const _CallExperience({
+class _CallScreen extends StatelessWidget {
+  const _CallScreen({
     required this.appState,
-    required this.showDetailsPanel,
+    required this.showEmployeePanel,
     required this.onDisconnect,
     required this.onOpenSettings,
+    required this.onRefreshEmployees,
     required this.onToggleCamera,
-    required this.onToggleDetails,
+    required this.onToggleEmployeePanel,
     required this.onToggleMicrophone,
     super.key,
   });
 
   final AppState appState;
-  final bool showDetailsPanel;
+  final bool showEmployeePanel;
   final Future<void> Function() onDisconnect;
   final VoidCallback onOpenSettings;
+  final Future<void> Function() onRefreshEmployees;
   final Future<void> Function() onToggleCamera;
-  final VoidCallback onToggleDetails;
+  final VoidCallback onToggleEmployeePanel;
   final Future<void> Function() onToggleMicrophone;
 
   @override
@@ -362,12 +304,12 @@ class _CallExperience extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final wide = constraints.maxWidth >= 1080;
-        final outerPadding = constraints.maxWidth < 720 ? 16.0 : 24.0;
+        final padding = constraints.maxWidth < 760 ? 16.0 : 24.0;
 
         return Stack(
           children: <Widget>[
             Padding(
-              padding: EdgeInsets.fromLTRB(outerPadding, 18, outerPadding, 18),
+              padding: EdgeInsets.fromLTRB(padding, 18, padding, 18),
               child: Column(
                 children: <Widget>[
                   _CallHeader(
@@ -380,14 +322,21 @@ class _CallExperience extends StatelessWidget {
                         ? Row(
                             children: <Widget>[
                               Expanded(
-                                flex: showDetailsPanel ? 7 : 10,
+                                flex: showEmployeePanel ? 7 : 10,
                                 child: _AssistantStage(appState: appState),
                               ),
-                              if (showDetailsPanel) ...<Widget>[
+                              if (showEmployeePanel) ...<Widget>[
                                 const SizedBox(width: 18),
                                 Expanded(
-                                  flex: 3,
-                                  child: _DetailsPanel(appState: appState),
+                                  flex: 4,
+                                  child: _EmployeeDirectoryPanel(
+                                    title: 'Employee Directory',
+                                    subtitle:
+                                        'Search your company staff while you talk to Mila.',
+                                    appState: appState,
+                                    dark: true,
+                                    onRefresh: onRefreshEmployees,
+                                  ),
                                 ),
                               ],
                             ],
@@ -398,16 +347,24 @@ class _CallExperience extends StatelessWidget {
                 ],
               ),
             ),
-            if (!wide && showDetailsPanel)
+            if (!wide && showEmployeePanel)
               Positioned(
-                left: outerPadding,
-                right: outerPadding,
-                bottom: 100,
-                child: _DetailsPanel(appState: appState, compact: true),
+                left: padding,
+                right: padding,
+                top: 92,
+                bottom: 102,
+                child: _EmployeeDirectoryPanel(
+                  title: 'Employee Directory',
+                  subtitle:
+                      'Tap a record to review names, roles, and Telegram usernames.',
+                  appState: appState,
+                  dark: true,
+                  onRefresh: onRefreshEmployees,
+                ),
               ),
             Positioned(
-              left: outerPadding,
-              right: outerPadding,
+              left: padding,
+              right: padding,
               bottom: 18,
               child: Center(
                 child: ConstrainedBox(
@@ -417,9 +374,9 @@ class _CallExperience extends StatelessWidget {
                     onDisconnect: onDisconnect,
                     onOpenSettings: onOpenSettings,
                     onToggleCamera: onToggleCamera,
-                    onToggleDetails: onToggleDetails,
+                    onToggleEmployeePanel: onToggleEmployeePanel,
                     onToggleMicrophone: onToggleMicrophone,
-                    showDetailsPanel: showDetailsPanel,
+                    showEmployeePanel: showEmployeePanel,
                     palette: palette,
                   ),
                 ),
@@ -483,6 +440,7 @@ class _AssistantStage extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = Theme.of(context).extension<MilaPalette>()!;
     final theme = Theme.of(context);
+    final agentReady = appState.remoteParticipantNames.isNotEmpty;
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -491,7 +449,7 @@ class _AssistantStage extends StatelessWidget {
         border: Border.all(color: palette.darkOutline),
         boxShadow: const <BoxShadow>[
           BoxShadow(
-            color: Color(0x26000000),
+            color: Color(0x24000000),
             blurRadius: 32,
             offset: Offset(0, 18),
           ),
@@ -504,184 +462,422 @@ class _AssistantStage extends StatelessWidget {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(28),
                 gradient: RadialGradient(
-                  center: const Alignment(0, -0.15),
-                  radius: 0.9,
+                  center: const Alignment(0, -0.25),
+                  radius: 0.95,
                   colors: <Color>[
-                    palette.blue500.withValues(alpha: 0.08),
-                    palette.darkBackground,
+                    palette.blue500.withValues(alpha: 0.14),
                     palette.darkSurface,
+                    palette.darkBackground,
                   ],
                 ),
               ),
             ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(24, 22, 24, 22),
+            padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
             child: Column(
               children: <Widget>[
-                Row(
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  alignment: WrapAlignment.center,
                   children: <Widget>[
-                    _ToneChip(
+                    _InfoPill(
+                      icon: Icons.mic,
                       label: appState.isMicrophoneEnabled
                           ? 'MIC HOT'
-                          : 'MIC MUTED',
+                          : 'MIC OFF',
                       dark: true,
                     ),
-                    const Spacer(),
-                    if (appState.isCameraEnabled)
-                      const _ToneChip(label: 'VIDEO ON', dark: true),
+                    _InfoPill(
+                      icon: Icons.groups_2_outlined,
+                      label: appState.hasEmployeeDirectory
+                          ? '${appState.employeeDirectory.length} STAFF'
+                          : 'STAFF NOT LOADED',
+                      dark: true,
+                    ),
                   ],
                 ),
                 const Spacer(),
-                Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      _AssistantVisualizer(active: true, palette: palette),
-                      const SizedBox(height: 24),
-                      Text(
-                        appState.isConnecting
-                            ? 'Connecting to Mila...'
-                            : 'Mila is ready to listen.',
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          color: Colors.white,
-                          fontSize: 30,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        appState.isConnecting
-                            ? 'Waiting for LiveKit to finish connecting and publish your microphone.'
-                            : 'Assistant audio will play through LiveKit as soon as the room is active.',
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.bodyLarge?.copyWith(
-                          color: Colors.white.withValues(alpha: 0.72),
-                        ),
-                      ),
-                    ],
+                _AssistantVisualizer(
+                  active: agentReady || appState.isConnected,
+                  palette: palette,
+                ),
+                const SizedBox(height: 28),
+                Text(
+                  agentReady
+                      ? 'Mila is ready to listen.'
+                      : 'Waiting for Mila to join the room.',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.displaySmall?.copyWith(
+                    color: Colors.white,
+                    fontSize: 38,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  agentReady
+                      ? 'LiveKit is connected and the employee directory stays available while you talk.'
+                      : 'Assistant audio will play through LiveKit as soon as the agent session becomes active.',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    color: Colors.white.withValues(alpha: 0.72),
                   ),
                 ),
                 const Spacer(),
               ],
             ),
           ),
-          if (appState.isCameraEnabled)
-            const Positioned(
-              right: 18,
-              bottom: 18,
-              child: _CameraPreviewCard(),
-            ),
-          if (appState.errorMessage != null)
-            Positioned(
-              left: 18,
-              right: 18,
-              top: 76,
-              child: _ErrorBanner(message: appState.errorMessage!, dark: true),
-            ),
         ],
       ),
     );
   }
 }
 
-class _DetailsPanel extends StatelessWidget {
-  const _DetailsPanel({required this.appState, this.compact = false});
+class _EmployeeDirectoryPanel extends StatefulWidget {
+  const _EmployeeDirectoryPanel({
+    required this.title,
+    required this.subtitle,
+    required this.appState,
+    required this.dark,
+    required this.onRefresh,
+  });
 
+  final String title;
+  final String subtitle;
   final AppState appState;
-  final bool compact;
+  final bool dark;
+  final Future<void> Function() onRefresh;
+
+  @override
+  State<_EmployeeDirectoryPanel> createState() =>
+      _EmployeeDirectoryPanelState();
+}
+
+class _EmployeeDirectoryPanelState extends State<_EmployeeDirectoryPanel> {
+  String _query = '';
 
   @override
   Widget build(BuildContext context) {
-    final palette = Theme.of(context).extension<MilaPalette>()!;
     final theme = Theme.of(context);
+    final palette = theme.extension<MilaPalette>()!;
+    final surface = widget.dark
+        ? palette.darkSurface.withValues(alpha: 0.98)
+        : Colors.white;
+    final border = widget.dark ? palette.darkOutline : palette.lightOutline;
+    final textColor = widget.dark ? Colors.white : const Color(0xFF111111);
+    final subdued = widget.dark
+        ? Colors.white.withValues(alpha: 0.68)
+        : const Color(0xFF5B5B58);
+    final filteredEmployees = widget.appState.employeeDirectory
+        .where((employee) => employee.matchesQuery(_query))
+        .toList();
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: palette.darkSurface.withValues(alpha: 0.96),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: palette.darkOutline),
+        color: surface,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: border),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
         child: Column(
-          mainAxisSize: compact ? MainAxisSize.min : MainAxisSize.max,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             Row(
               children: <Widget>[
-                Text(
-                  'Agent Panel',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: Colors.white,
-                    fontSize: 18,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        widget.title,
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          color: textColor,
+                          fontSize: 24,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        widget.subtitle,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: subdued,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const Spacer(),
-                const _ToneChip(label: 'DETAILS', dark: true),
+                IconButton(
+                  onPressed: widget.appState.hasBackendBaseUrl
+                      ? widget.onRefresh
+                      : null,
+                  style: IconButton.styleFrom(
+                    backgroundColor: widget.dark
+                        ? Colors.white.withValues(alpha: 0.06)
+                        : const Color(0xFFF3F3F0),
+                    foregroundColor: textColor,
+                  ),
+                  icon: widget.appState.isEmployeeDirectoryLoading
+                      ? SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              widget.dark ? Colors.white : palette.blue500,
+                            ),
+                          ),
+                        )
+                      : const Icon(Icons.refresh),
+                ),
               ],
             ),
             const SizedBox(height: 16),
-            _PanelRow(label: 'Participant', value: appState.participantName),
-            _PanelRow(label: 'Identity', value: appState.participantIdentity),
-            _PanelRow(label: 'Source', value: appState.participantSource),
-            _PanelRow(
-              label: 'Backend',
-              value: appState.hasBackendBaseUrl
-                  ? appState.backendBaseUrl
-                  : 'Not configured',
-              multiline: true,
-            ),
-            const SizedBox(height: 14),
-            Text(
-              'Remote participants',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: Colors.white.withValues(alpha: 0.72),
-                fontWeight: FontWeight.w700,
+            TextField(
+              onChanged: (value) {
+                setState(() {
+                  _query = value;
+                });
+              },
+              style: theme.textTheme.bodyLarge?.copyWith(color: textColor),
+              decoration: InputDecoration(
+                hintText: 'Search by name, number, position, or Telegram',
+                hintStyle: theme.textTheme.bodyMedium?.copyWith(color: subdued),
+                prefixIcon: Icon(Icons.search, color: subdued),
+                filled: true,
+                fillColor: widget.dark
+                    ? Colors.white.withValues(alpha: 0.04)
+                    : const Color(0xFFF6F6F3),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(18),
+                  borderSide: BorderSide.none,
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(18),
+                  borderSide: BorderSide.none,
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(18),
+                  borderSide: BorderSide(
+                    color: widget.dark
+                        ? Colors.white.withValues(alpha: 0.18)
+                        : palette.blue500.withValues(alpha: 0.45),
+                  ),
+                ),
               ),
             ),
-            const SizedBox(height: 10),
-            if (appState.remoteParticipantNames.isEmpty)
-              Text(
-                'Waiting for Mila to join the room.',
-                style: theme.textTheme.bodyLarge?.copyWith(
-                  color: Colors.white.withValues(alpha: 0.72),
+            const SizedBox(height: 14),
+            if (!widget.appState.hasBackendBaseUrl)
+              _PanelMessage(
+                dark: widget.dark,
+                title: 'Backend URL not saved',
+                body:
+                    'Open Settings, save your backend URL, and the employee directory will load automatically.',
+              )
+            else if (widget.appState.employeeDirectoryError != null)
+              _PanelMessage(
+                dark: widget.dark,
+                title: 'Could not load employees',
+                body: widget.appState.employeeDirectoryError!,
+              )
+            else if (widget.appState.isEmployeeDirectoryLoading &&
+                widget.appState.employeeDirectory.isEmpty)
+              Expanded(
+                child: Center(
+                  child: CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      widget.dark ? Colors.white : palette.blue500,
+                    ),
+                  ),
                 ),
               )
-            else
+            else if (filteredEmployees.isEmpty)
+              Expanded(
+                child: _PanelMessage(
+                  dark: widget.dark,
+                  title: 'No matching employees',
+                  body: _query.trim().isEmpty
+                      ? 'No active employees were returned by the backend.'
+                      : 'Try a different search term.',
+                ),
+              )
+            else ...<Widget>[
+              Text(
+                '${filteredEmployees.length} employees',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: subdued,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Expanded(
+                child: ListView.separated(
+                  itemCount: filteredEmployees.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 10),
+                  itemBuilder: (context, index) {
+                    final employee = filteredEmployees[index];
+                    return _EmployeeCard(employee: employee, dark: widget.dark);
+                  },
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EmployeeCard extends StatelessWidget {
+  const _EmployeeCard({required this.employee, required this.dark});
+
+  final EmployeeRecord employee;
+  final bool dark;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final textColor = dark ? Colors.white : const Color(0xFF151515);
+    final secondary = dark
+        ? Colors.white.withValues(alpha: 0.68)
+        : const Color(0xFF5C5C59);
+    final surface = dark
+        ? Colors.white.withValues(alpha: 0.04)
+        : const Color(0xFFF7F7F4);
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: surface,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: dark
+                        ? Colors.white.withValues(alpha: 0.08)
+                        : Colors.white,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    employee.badgeLabel,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: textColor,
+                      fontWeight: FontWeight.w800,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        employee.fullName,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: textColor,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      if (employee.position != null ||
+                          employee.departmentTitle != null) ...<Widget>[
+                        const SizedBox(height: 4),
+                        Text(
+                          [
+                            if (employee.position != null) employee.position!,
+                            if (employee.departmentTitle != null)
+                              employee.departmentTitle!,
+                          ].join(' · '),
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: secondary,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            if (employee.telegramUsername != null ||
+                employee.phone != null ||
+                employee.accessLevel != null) ...<Widget>[
+              const SizedBox(height: 12),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: appState.remoteParticipantNames
-                    .map(
-                      (name) => _InfoPill(
-                        icon: Icons.graphic_eq,
-                        label: name,
-                        dark: true,
-                      ),
-                    )
-                    .toList(),
+                children: <Widget>[
+                  if (employee.telegramUsername != null)
+                    _MiniPill(
+                      label: '@${employee.telegramUsername!}',
+                      dark: dark,
+                    ),
+                  if (employee.phone != null)
+                    _MiniPill(label: employee.phone!, dark: dark),
+                  if (employee.accessLevel != null)
+                    _MiniPill(label: employee.accessLevel!, dark: dark),
+                ],
               ),
-            const SizedBox(height: 18),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PanelMessage extends StatelessWidget {
+  const _PanelMessage({
+    required this.dark,
+    required this.title,
+    required this.body,
+  });
+
+  final bool dark;
+  final String title;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Icon(
+              Icons.info_outline,
+              color: dark ? Colors.white70 : const Color(0xFF4A4A46),
+            ),
+            const SizedBox(height: 12),
             Text(
-              'Quick backend URLs',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: Colors.white.withValues(alpha: 0.72),
-                fontWeight: FontWeight.w700,
+              title,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: dark ? Colors.white : const Color(0xFF111111),
               ),
             ),
-            const SizedBox(height: 10),
-            const _PanelHint(
-              title: 'Android emulator',
-              value: 'http://10.0.2.2:8000',
-            ),
-            const _PanelHint(
-              title: 'Phone on Wi-Fi',
-              value: 'http://YOUR_PC_LAN_IP:8000',
-            ),
-            const _PanelHint(
-              title: 'Production',
-              value: 'https://my-domain.com',
+            const SizedBox(height: 6),
+            Text(
+              body,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: dark
+                    ? Colors.white.withValues(alpha: 0.68)
+                    : const Color(0xFF5B5B58),
+              ),
             ),
           ],
         ),
@@ -696,9 +892,9 @@ class _ControlDock extends StatelessWidget {
     required this.onDisconnect,
     required this.onOpenSettings,
     required this.onToggleCamera,
-    required this.onToggleDetails,
+    required this.onToggleEmployeePanel,
     required this.onToggleMicrophone,
-    required this.showDetailsPanel,
+    required this.showEmployeePanel,
     required this.palette,
   });
 
@@ -706,9 +902,9 @@ class _ControlDock extends StatelessWidget {
   final Future<void> Function() onDisconnect;
   final VoidCallback onOpenSettings;
   final Future<void> Function() onToggleCamera;
-  final VoidCallback onToggleDetails;
+  final VoidCallback onToggleEmployeePanel;
   final Future<void> Function() onToggleMicrophone;
-  final bool showDetailsPanel;
+  final bool showEmployeePanel;
   final MilaPalette palette;
 
   @override
@@ -738,9 +934,9 @@ class _ControlDock extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             _DockButton(
-              icon: Icons.chat_bubble_outline,
-              active: showDetailsPanel,
-              onPressed: onToggleDetails,
+              icon: Icons.groups_2_outlined,
+              active: showEmployeePanel,
+              onPressed: onToggleEmployeePanel,
             ),
             const SizedBox(width: 8),
             _DockButton(
@@ -955,8 +1151,8 @@ class _AssistantVisualizerState extends State<_AssistantVisualizer> {
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 240),
-      width: 340,
-      height: 340,
+      width: 320,
+      height: 320,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         gradient: RadialGradient(
@@ -1003,85 +1199,6 @@ class _AssistantVisualizerState extends State<_AssistantVisualizer> {
                 ),
               );
             }),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _CameraPreviewCard extends StatelessWidget {
-  const _CameraPreviewCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: const Color(0xFF181818),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-      ),
-      child: SizedBox(
-        width: 156,
-        height: 114,
-        child: Stack(
-          children: <Widget>[
-            const Center(child: _MilaAppMark(size: 58)),
-            Positioned(
-              right: 10,
-              bottom: 10,
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.42),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.cameraswitch,
-                  color: Colors.white70,
-                  size: 18,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ConnectInfoCard extends StatelessWidget {
-  const _ConnectInfoCard({
-    required this.title,
-    required this.child,
-    required this.width,
-  });
-
-  final String title;
-  final Widget child;
-  final double width;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = Theme.of(context).extension<MilaPalette>()!;
-
-    return SizedBox(
-      width: width.isFinite ? width : null,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: const Color(0xFFFBFBF8),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: palette.lightOutline),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(22),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text(title, style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 14),
-              child,
-            ],
           ),
         ),
       ),
@@ -1218,143 +1335,58 @@ class _InfoPill extends StatelessWidget {
   }
 }
 
-class _PanelRow extends StatelessWidget {
-  const _PanelRow({
-    required this.label,
-    required this.value,
-    this.multiline = false,
-  });
+class _MiniPill extends StatelessWidget {
+  const _MiniPill({required this.label, required this.dark});
 
   final String label;
-  final String value;
-  final bool multiline;
+  final bool dark;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(
-            label,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Colors.white.withValues(alpha: 0.62),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            maxLines: multiline ? null : 1,
-            overflow: multiline ? TextOverflow.visible : TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: Colors.white,
-              fontFamily: label == 'Identity' ? 'monospace' : null,
-            ),
-          ),
-        ],
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: dark
+            ? Colors.white.withValues(alpha: 0.06)
+            : const Color(0xFFFFFFFF),
+        borderRadius: BorderRadius.circular(999),
       ),
-    );
-  }
-}
-
-class _PanelHint extends StatelessWidget {
-  const _PanelHint({required this.title, required this.value});
-
-  final String title;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(
-            title,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Colors.white.withValues(alpha: 0.62),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: Colors.white,
-              fontFamily: 'monospace',
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _HintLine extends StatelessWidget {
-  const _HintLine({required this.title, required this.value});
-
-  final String title;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(
-            title,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              fontWeight: FontWeight.w700,
-              color: const Color(0xFF232323),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(fontFamily: 'monospace'),
-          ),
-        ],
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: dark ? Colors.white : const Color(0xFF1A1A1A),
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }
 }
 
 class _ErrorBanner extends StatelessWidget {
-  const _ErrorBanner({required this.message, this.dark = false});
+  const _ErrorBanner({required this.message});
 
   final String message;
-  final bool dark;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: dark ? const Color(0x33FF5A5A) : const Color(0xFFFFECE9),
+        color: const Color(0xFFFFECE9),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: dark ? const Color(0x66FF6B6B) : const Color(0xFFFFD0C9),
-        ),
+        border: Border.all(color: const Color(0xFFFFD0C9)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Icon(
-            Icons.error_outline,
-            color: dark ? Colors.white : const Color(0xFF9C2F20),
-          ),
+          const Icon(Icons.error_outline, color: Color(0xFF9C2F20)),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               message,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: dark ? Colors.white : const Color(0xFF6A2117),
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: const Color(0xFF6A2117)),
             ),
           ),
         ],

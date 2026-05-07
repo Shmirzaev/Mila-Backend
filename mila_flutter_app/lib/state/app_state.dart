@@ -5,6 +5,8 @@ import 'package:livekit_client/livekit_client.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../app_config.dart';
+import '../models/employee_record.dart';
+import '../services/employee_directory_service.dart';
 import '../services/livekit_service.dart';
 import '../services/settings_service.dart';
 import '../services/token_service.dart';
@@ -13,13 +15,16 @@ enum AppConnectionStatus { disconnected, connecting, connected, error }
 
 class AppState extends ChangeNotifier {
   AppState({
+    required EmployeeDirectoryService employeeDirectoryService,
     required SettingsService settingsService,
     required TokenService tokenService,
     required LiveKitService liveKitService,
-  }) : _settingsService = settingsService,
+  }) : _employeeDirectoryService = employeeDirectoryService,
+       _settingsService = settingsService,
        _tokenService = tokenService,
        _liveKitService = liveKitService;
 
+  final EmployeeDirectoryService _employeeDirectoryService;
   final SettingsService _settingsService;
   final TokenService _tokenService;
   final LiveKitService _liveKitService;
@@ -35,6 +40,9 @@ class AppState extends ChangeNotifier {
   bool _isCameraEnabled = false;
   bool _cameraEnabledOnConnect = false;
   List<String> _remoteParticipantNames = const <String>[];
+  List<EmployeeRecord> _employeeDirectory = const <EmployeeRecord>[];
+  bool _isEmployeeDirectoryLoading = false;
+  String? _employeeDirectoryError;
 
   String get backendBaseUrl => _backendBaseUrl;
   String? get errorMessage => _errorMessage;
@@ -48,6 +56,11 @@ class AppState extends ChangeNotifier {
   bool get canDisconnect => _liveKitService.room != null || isConnecting;
   List<String> get remoteParticipantNames =>
       List<String>.unmodifiable(_remoteParticipantNames);
+  List<EmployeeRecord> get employeeDirectory =>
+      List<EmployeeRecord>.unmodifiable(_employeeDirectory);
+  bool get isEmployeeDirectoryLoading => _isEmployeeDirectoryLoading;
+  String? get employeeDirectoryError => _employeeDirectoryError;
+  bool get hasEmployeeDirectory => _employeeDirectory.isNotEmpty;
 
   String get participantSource {
     if (kIsWeb) {
@@ -87,6 +100,10 @@ class AppState extends ChangeNotifier {
     final storedUrl = await _settingsService.readBackendBaseUrl();
     _backendBaseUrl = _resolveInitialBackendBaseUrl(storedUrl);
     _safeNotifyListeners();
+
+    if (hasBackendBaseUrl) {
+      unawaited(refreshEmployeeDirectory());
+    }
   }
 
   Future<void> maybeAutoConnectOnLaunch() async {
@@ -106,6 +123,39 @@ class AppState extends ChangeNotifier {
     _backendBaseUrl = normalized;
     _errorMessage = null;
     _safeNotifyListeners();
+    await refreshEmployeeDirectory();
+  }
+
+  Future<void> refreshEmployeeDirectory({int limit = 250}) async {
+    if (!hasBackendBaseUrl) {
+      _employeeDirectory = const <EmployeeRecord>[];
+      _employeeDirectoryError = null;
+      _isEmployeeDirectoryLoading = false;
+      _safeNotifyListeners();
+      return;
+    }
+
+    _isEmployeeDirectoryLoading = true;
+    _employeeDirectoryError = null;
+    _safeNotifyListeners();
+
+    try {
+      final employees = await _employeeDirectoryService.fetchEmployees(
+        backendBaseUrl: _backendBaseUrl,
+        limit: limit,
+      );
+      _employeeDirectory = employees;
+      _employeeDirectoryError = null;
+    } on EmployeeDirectoryServiceException catch (error) {
+      _employeeDirectory = const <EmployeeRecord>[];
+      _employeeDirectoryError = error.message;
+    } catch (error) {
+      _employeeDirectory = const <EmployeeRecord>[];
+      _employeeDirectoryError = 'Could not load employees: $error';
+    } finally {
+      _isEmployeeDirectoryLoading = false;
+      _safeNotifyListeners();
+    }
   }
 
   Future<void> connect() async {
@@ -168,6 +218,7 @@ class AppState extends ChangeNotifier {
       }
 
       _errorMessage = nonBlockingError;
+      unawaited(refreshEmployeeDirectory());
       _safeNotifyListeners();
     } on _PermissionDeniedException catch (error) {
       await _handleConnectFailure(error.message);
@@ -264,6 +315,7 @@ class AppState extends ChangeNotifier {
     _disposed = true;
     unawaited(_detachRoom());
     unawaited(_liveKitService.disconnect());
+    _employeeDirectoryService.dispose();
     _tokenService.dispose();
     super.dispose();
   }

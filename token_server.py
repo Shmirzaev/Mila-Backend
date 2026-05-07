@@ -12,6 +12,7 @@ from livekit.api import (
     TwirpError,
 )
 
+from employee_service import get_all_active_employees_data
 from env_config import LOADED_ENV_FILES, env_bool, env_int, load_project_env
 
 
@@ -147,6 +148,26 @@ async def create_token(request: Request):
 @app.get("/health")
 def health():
     return {"ok": True}
+
+
+@app.get("/employees")
+async def employees(limit: int = 200):
+    bounded_limit = max(1, min(int(limit), 500))
+
+    try:
+        items = await get_all_active_employees_data(limit=bounded_limit)
+    except RuntimeError as error:
+        raise HTTPException(status_code=500, detail=str(error)) from error
+    except Exception as error:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Could not load employees: {error}",
+        ) from error
+
+    return {
+        "employees": items,
+        "count": len(items),
+    }
 
 @app.get("/debug-env")
 def debug_env():
