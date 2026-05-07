@@ -1,0 +1,41 @@
+# Secrets and local environment files
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.python-version
+.venv/
+.venv*/
+
+# Local databases, imports, and backups
+data/
+imports/*.csv
+!imports/*.sample.csv
+*_backup.sql
+
+# Build artifacts
+build/
+dist/
+node_modules/
+
+# Flutter / Android local outputs
+mila_flutter_app/.dart_tool/
+mila_flutter_app/build/
+mila_flutter_app/android/key.properties
+mila_flutter_app/android/**/*.jks
+mila_flutter_app/*.iml
+
+# IDE and OS files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,14 @@
+services:
+  mila_postgres:
+    image: pgvector/pgvector:pg16
+    container_name: mila_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: mila_ai
+      POSTGRES_USER: mila
+      POSTGRES_PASSWORD: mila_strong_password_change_me
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+      - ./db:/docker-entrypoint-initdb.d

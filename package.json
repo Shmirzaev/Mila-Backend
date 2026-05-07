@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "@livekit/components-core": "^0.12.13",
+    "@livekit/components-react": "^2.9.20",
+    "livekit-client": "^2.18.8",
+    "lucide-react": "^1.14.0"
+  }
+}
