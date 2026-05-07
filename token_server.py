@@ -6,9 +6,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from livekit.api import (
     AccessToken,
+    CreateAgentDispatchRequest,
+    LiveKitAPI,
     VideoGrants,
-    RoomConfiguration,
-    RoomAgentDispatch,
+    TwirpError,
 )
 
 from env_config import LOADED_ENV_FILES, env_bool, env_int, load_project_env
@@ -57,6 +58,23 @@ def _missing_livekit_env_vars() -> list[str]:
     return missing
 
 
+async def _dispatch_agent_to_room(room_name: str, participant_source: str) -> None:
+    metadata = json.dumps({"source": participant_source})
+
+    async with LiveKitAPI(
+        url=LIVEKIT_URL,
+        api_key=LIVEKIT_API_KEY,
+        api_secret=LIVEKIT_API_SECRET,
+    ) as livekit_api:
+        await livekit_api.agent_dispatch.create_dispatch(
+            CreateAgentDispatchRequest(
+                agent_name=AGENT_NAME,
+                room=room_name,
+                metadata=metadata,
+            )
+        )
+
+
 @app.post("/token")
 async def create_token(request: Request):
     try:
@@ -82,6 +100,22 @@ async def create_token(request: Request):
     participant_name = body.get("participant_name") or "Beknazar Flutter"
     participant_source = body.get("source") or "flutter"
 
+    try:
+        await _dispatch_agent_to_room(
+            room_name=room_name,
+            participant_source=participant_source,
+        )
+    except TwirpError as error:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Could not dispatch Mila agent: {error.message or str(error)}",
+        ) from error
+    except Exception as error:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Could not dispatch Mila agent: {error}",
+        ) from error
+
     token = (
         AccessToken(
             api_key=LIVEKIT_API_KEY,
@@ -96,16 +130,6 @@ async def create_token(request: Request):
                 can_publish=True,
                 can_subscribe=True,
                 can_publish_data=True,
-            )
-        )
-        .with_room_config(
-            RoomConfiguration(
-                agents=[
-                    RoomAgentDispatch(
-                        agent_name=AGENT_NAME,
-                        metadata=json.dumps({"source": participant_source})
-                    )
-                ]
             )
         )
         .to_jwt()
