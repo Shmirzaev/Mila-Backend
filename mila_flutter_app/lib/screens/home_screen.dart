@@ -36,7 +36,11 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
-    if (kIsWeb) {
+    final useUnifiedWebUi =
+        kIsWeb ||
+        defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
+    if (useUnifiedWebUi) {
       return _WebLiveScreen(
         appState: appState,
         onConnect: context.read<AppState>().connect,
