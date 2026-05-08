@@ -61,8 +61,8 @@ def _env_float(name: str, default: float) -> float:
 
 
 MILA_REALTIME_MODEL = (
-    os.getenv("MILA_REALTIME_MODEL", "gemini-3.1-flash-live-preview").strip()
-    or "gemini-3.1-flash-live-preview"
+    os.getenv("MILA_REALTIME_MODEL", "gemini-2.5-flash-native-audio-preview-12-2025").strip()
+    or "gemini-2.5-flash-native-audio-preview-12-2025"
 )
 MILA_STARTUP_MEMORY_LIMIT = env_int("MILA_STARTUP_MEMORY_LIMIT", 8)
 MILA_STARTUP_MEMORY_TIMEOUT_SECONDS = _env_float(
