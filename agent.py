@@ -1,3 +1,10 @@
+import asyncio
+import json
+import os
+from datetime import datetime, timezone
+
+from pydantic import BaseModel, Field
+
 from employee_service import (
     init_employee_pool,
     list_departments,
@@ -28,6 +35,7 @@ from livekit.agents import (
     function_tool,
     room_io,
 )
+from livekit.agents.llm import ChatContext
 
 from memory_service import (
     init_memory_pool,
@@ -38,14 +46,37 @@ from memory_service import (
     list_recent_memory,
 )
 
-
-import os
-from livekit.agents import Agent, AgentSession, JobContext, cli
 from livekit.plugins import google
 from telegram_service import send_staff_announcement
-from env_config import load_project_env
+from env_config import env_int, load_project_env
 
 load_project_env()
+
+
+def _env_float(name: str, default: float) -> float:
+    raw_value = os.getenv(name)
+    if raw_value is None or not raw_value.strip():
+        return default
+    return float(raw_value)
+
+
+MILA_REALTIME_MODEL = (
+    os.getenv("MILA_REALTIME_MODEL", "gemini-2.5-flash-native-audio-preview-12-2025").strip()
+    or "gemini-2.5-flash-native-audio-preview-12-2025"
+)
+MILA_STARTUP_MEMORY_LIMIT = env_int("MILA_STARTUP_MEMORY_LIMIT", 8)
+MILA_STARTUP_MEMORY_TIMEOUT_SECONDS = _env_float(
+    "MILA_STARTUP_MEMORY_TIMEOUT_SECONDS",
+    1.5,
+)
+MILA_AEC_WARMUP_SECONDS = _env_float("MILA_AEC_WARMUP_SECONDS", 1.0)
+MILA_MEMORY_SUMMARY_MODEL = (
+    os.getenv("MILA_MEMORY_SUMMARY_MODEL", "gemini-2.5-flash").strip()
+    or "gemini-2.5-flash"
+)
+MILA_AUTO_MEMORY_MAX_MESSAGES = env_int("MILA_AUTO_MEMORY_MAX_MESSAGES", 24)
+MILA_AUTO_MEMORY_MAX_CHARS = env_int("MILA_AUTO_MEMORY_MAX_CHARS", 12000)
+MILA_AUTO_MEMORY_WAIT_SECONDS = _env_float("MILA_AUTO_MEMORY_WAIT_SECONDS", 6.0)
 
 SYSTEM_PROMPT = """
 You are Mila, a personal AI assistant for the CEO of a textile and light-industry company based in Uzbekistan named "Milana premium".
@@ -327,6 +358,16 @@ Do not treat database UUID as employee number.
 
 """
 
+class AutoMemoryDraft(BaseModel):
+    should_save: bool = False
+    title: str = ""
+    summary: str = ""
+    category: str = "conversation"
+    memory_type: str = "session_summary"
+    importance: int = Field(default=3, ge=1, le=5)
+    tags: list[str] = Field(default_factory=list)
+
+
 class Assistant(Agent):
     def __init__(self, startup_memory: str = "") -> None:
         memory_rules = f"""
@@ -374,6 +415,15 @@ Do not save:
 - sensitive personal data unless the CEO clearly requests it.
 
 When you need old context, use search_business_memory.
+
+When the CEO asks about:
+- previous calls;
+- past conversations;
+- what was discussed earlier;
+- what was seen earlier through the camera;
+- earlier instructions or decisions;
+
+use search_business_memory before answering if the answer depends on prior sessions.
 
 When the CEO asks what you remember, use list_memory.
 
@@ -658,38 +708,310 @@ For messages to all employees or departments, use group or broadcast tools, not 
         """
         return await get_telegram_target(target_key=target_key)
 
+
+def _clip_text(value: str, limit: int) -> str:
+    text = value.strip()
+    if len(text) <= limit:
+        return text
+    return text[: max(0, limit - 3)].rstrip() + "..."
+
+
+def _message_has_content_type(message, content_type: str) -> bool:
+    for content_item in getattr(message, "content", []):
+        if getattr(content_item, "type", None) == content_type:
+            return True
+    return False
+
+
+def _render_history_for_memory(chat_ctx: ChatContext) -> tuple[str, bool, int]:
+    rendered_messages: list[str] = []
+    had_vision = False
+
+    for item in chat_ctx.items:
+        if getattr(item, "type", None) != "message":
+            continue
+
+        role = getattr(item, "role", None)
+        if role not in {"user", "assistant"}:
+            continue
+
+        text_content = (getattr(item, "text_content", None) or "").strip()
+        has_image = _message_has_content_type(item, "image_content")
+        has_audio = _message_has_content_type(item, "audio_content")
+
+        lines: list[str] = []
+        if text_content:
+            lines.append(text_content)
+        if has_image:
+            had_vision = True
+            lines.append("[visual context was present in this turn]")
+        if has_audio and not text_content:
+            lines.append("[audio was present but no transcript text was captured]")
+
+        if not lines:
+            continue
+
+        rendered_messages.append(f"<{role}>{' '.join(lines)}</{role}>")
+
+    if not rendered_messages:
+        return "", had_vision, 0
+
+    recent_messages = rendered_messages[-MILA_AUTO_MEMORY_MAX_MESSAGES :]
+    transcript = _clip_text("\n".join(recent_messages), MILA_AUTO_MEMORY_MAX_CHARS)
+    return transcript, had_vision, len(recent_messages)
+
+
+def _normalize_memory_tags(*tag_groups: list[str] | tuple[str, ...]) -> list[str]:
+    normalized: list[str] = []
+    seen: set[str] = set()
+
+    for group in tag_groups:
+        for tag in group:
+            clean_tag = str(tag).strip().lower().replace(" ", "-")
+            if not clean_tag:
+                continue
+            clean_tag = clean_tag[:48]
+            if clean_tag in seen:
+                continue
+            seen.add(clean_tag)
+            normalized.append(clean_tag)
+
+    return normalized
+
+
+def _default_session_memory_title(had_vision: bool) -> str:
+    prefix = "Vision session" if had_vision else "Conversation session"
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    return f"{prefix} {timestamp}"
+
+
+def _fallback_memory_summary(transcript: str) -> str:
+    plain_lines: list[str] = []
+
+    for line in transcript.splitlines():
+        clean_line = line.strip()
+        if clean_line.startswith("<user>") and clean_line.endswith("</user>"):
+            plain_lines.append(f"User: {clean_line[6:-7].strip()}")
+        elif clean_line.startswith("<assistant>") and clean_line.endswith("</assistant>"):
+            plain_lines.append(f"Assistant: {clean_line[11:-12].strip()}")
+
+    if not plain_lines:
+        return transcript
+
+    return "\n".join(plain_lines[-8:])
+
+
+async def _draft_session_memory(
+    transcript: str,
+    had_vision: bool,
+) -> AutoMemoryDraft | None:
+    chat_ctx = ChatContext.empty()
+    chat_ctx.add_message(
+        role="system",
+        content=(
+            "You prepare durable long-term memory for Mila. "
+            "Return JSON only. Save concise, factual business context from the session. "
+            "Focus on decisions, preferences, commitments, follow-ups, people, production facts, "
+            "sales facts, purchasing facts, and important visual observations that were explicitly "
+            "discussed or confirmed during the session. "
+            "Do not save greetings, filler, passwords, API keys, private keys, bank data, or random noise. "
+            "If the session had no durable information, set should_save=false."
+        ),
+    )
+    chat_ctx.add_message(
+        role="user",
+        content=(
+            f"Vision context present: {'yes' if had_vision else 'no'}\n\n"
+            f"Session transcript:\n{transcript}"
+        ),
+    )
+
+    summarizer = google.LLM(
+        model=MILA_MEMORY_SUMMARY_MODEL,
+        temperature=0.2,
+        max_output_tokens=500,
+    )
+
+    chunks: list[str] = []
+    async with summarizer.chat(
+        chat_ctx=chat_ctx,
+        response_format=AutoMemoryDraft,
+    ) as stream:
+        async for chunk in stream:
+            if chunk.delta and chunk.delta.content:
+                chunks.append(chunk.delta.content)
+
+    raw_response = "".join(chunks).strip()
+    if not raw_response:
+        return None
+
+    try:
+        return AutoMemoryDraft.model_validate_json(raw_response)
+    except Exception:
+        try:
+            return AutoMemoryDraft.model_validate(json.loads(raw_response))
+        except Exception as error:
+            print(f"WARNING: failed to parse automatic memory summary: {error}")
+            return None
+
+
+async def _persist_session_memory(chat_ctx: ChatContext, close_reason: str) -> None:
+    transcript, had_vision, message_count = _render_history_for_memory(chat_ctx)
+    if message_count < 2 or not transcript:
+        return
+
+    draft: AutoMemoryDraft | None = None
+    try:
+        draft = await asyncio.wait_for(
+            _draft_session_memory(transcript, had_vision),
+            timeout=MILA_AUTO_MEMORY_WAIT_SECONDS,
+        )
+    except asyncio.TimeoutError:
+        print(
+            "WARNING: automatic memory summary timed out after "
+            f"{MILA_AUTO_MEMORY_WAIT_SECONDS:.1f}s"
+        )
+    except Exception as error:
+        print(f"WARNING: failed to summarize automatic memory: {error}")
+
+    if draft is None:
+        draft = AutoMemoryDraft(
+            should_save=True,
+            title=_default_session_memory_title(had_vision),
+            summary=_fallback_memory_summary(transcript),
+            category="vision" if had_vision else "conversation",
+            memory_type="session_summary",
+            importance=3,
+            tags=["auto-memory", "session"],
+        )
+
+    if not draft.should_save:
+        if had_vision or message_count >= 4:
+            draft = AutoMemoryDraft(
+                should_save=True,
+                title=_default_session_memory_title(had_vision),
+                summary=_fallback_memory_summary(transcript),
+                category="vision" if had_vision else "conversation",
+                memory_type="session_summary",
+                importance=3,
+                tags=["auto-memory", "session"],
+            )
+        else:
+            return
+
+    title = draft.title.strip() or _default_session_memory_title(had_vision)
+    summary = draft.summary.strip() or _fallback_memory_summary(transcript)
+    category = draft.category.strip() or ("vision" if had_vision else "conversation")
+    memory_type = draft.memory_type.strip() or "session_summary"
+    importance = max(1, min(int(draft.importance), 5))
+    tags = _normalize_memory_tags(
+        draft.tags,
+        ["auto-memory", "session", close_reason],
+        ["vision"] if had_vision else ["conversation"],
+    )
+
+    save_result = await save_memory(
+        title=title,
+        content=summary,
+        category=category,
+        memory_type=memory_type,
+        importance=importance,
+        tags=tags,
+        source="auto_session_memory",
+    )
+    print(f"INFO: {save_result}")
+
+
+def _install_session_memory_autosave(session: AgentSession, ctx: JobContext) -> None:
+    memory_task: asyncio.Task | None = None
+    memory_task_started = asyncio.Event()
+
+    def _on_session_close(event) -> None:
+        nonlocal memory_task
+
+        if memory_task is not None:
+            return
+
+        close_reason = getattr(getattr(event, "reason", None), "value", "unknown")
+        history_snapshot = session.history.copy()
+
+        async def _runner() -> None:
+            try:
+                await _persist_session_memory(history_snapshot, close_reason)
+            except Exception as error:
+                print(f"WARNING: failed to persist automatic memory: {error}")
+
+        memory_task = asyncio.create_task(_runner(), name="mila_auto_memory")
+        memory_task_started.set()
+
+    session.on("close", _on_session_close)
+
+    async def _await_auto_memory(_: str) -> None:
+        if memory_task is None:
+            try:
+                await asyncio.wait_for(
+                    memory_task_started.wait(),
+                    timeout=MILA_AUTO_MEMORY_WAIT_SECONDS,
+                )
+            except asyncio.TimeoutError:
+                return
+
+        if memory_task is not None:
+            await memory_task
+
+    ctx.add_shutdown_callback(_await_auto_memory)
+
+
 server = AgentServer()
+
+
+async def _load_startup_memory() -> str:
+    await init_memory_pool()
+
+    try:
+        return await asyncio.wait_for(
+            get_startup_memory(limit=MILA_STARTUP_MEMORY_LIMIT),
+            timeout=MILA_STARTUP_MEMORY_TIMEOUT_SECONDS,
+        )
+    except asyncio.TimeoutError:
+        print(
+            "WARNING: startup memory load timed out after "
+            f"{MILA_STARTUP_MEMORY_TIMEOUT_SECONDS:.1f}s"
+        )
+    except Exception as error:
+        print(f"WARNING: failed to load startup memory: {error}")
+
+    return ""
+
 
 @server.rtc_session(agent_name="mila-agent")
 async def entrypoint(ctx: JobContext):
-    await init_memory_pool()
-    await init_action_pool()
-    await init_employee_pool()
-    await ctx.connect()
-
-    try:
-        startup_memory = await get_startup_memory()
-    except Exception as e:
-        print(f"WARNING: failed to load startup memory: {e}")
-        startup_memory = ""
+    startup_memory, _, _, _ = await asyncio.gather(
+        _load_startup_memory(),
+        init_action_pool(),
+        init_employee_pool(),
+        ctx.connect(),
+    )
 
     session = AgentSession(
         llm=google.realtime.RealtimeModel(
-            model="gemini-3.1-flash-live-preview",
+            model=MILA_REALTIME_MODEL,
             voice="Achernar",
             temperature=0.8,
-        )
+        ),
+        aec_warmup_duration=MILA_AEC_WARMUP_SECONDS,
     )
+    _install_session_memory_autosave(session, ctx)
 
     await session.start(
-    agent=Assistant(startup_memory=startup_memory),
-    room=ctx.room,
-    room_options=room_io.RoomOptions(
-        video_input=True,
-    ),
-)
-import asyncio
+        agent=Assistant(startup_memory=startup_memory),
+        room=ctx.room,
+        room_options=room_io.RoomOptions(
+            video_input=True,
+            text_input=True,
+            text_output=True,
+        ),
+    )
 
 if __name__ == "__main__":
     cli.run_app(server)
-    

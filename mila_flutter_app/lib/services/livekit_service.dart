@@ -67,7 +67,10 @@ class LiveKitService {
     }
   }
 
-  Future<void> setCameraEnabled(bool enabled) async {
+  Future<void> setCameraEnabled(
+    bool enabled, {
+    CameraCaptureOptions? cameraCaptureOptions,
+  }) async {
     final localParticipant = _requireRoom().localParticipant;
     if (localParticipant == null) {
       throw const LiveKitServiceException(
@@ -76,10 +79,61 @@ class LiveKitService {
     }
 
     try {
-      await localParticipant.setCameraEnabled(enabled);
+      await localParticipant.setCameraEnabled(
+        enabled,
+        cameraCaptureOptions: cameraCaptureOptions,
+      );
     } catch (error) {
       final action = enabled ? 'enable' : 'disable';
       throw LiveKitServiceException('Could not $action the camera: $error');
+    }
+  }
+
+  Future<void> setCameraPosition(CameraPosition position) async {
+    final localParticipant = _requireRoom().localParticipant;
+    if (localParticipant == null) {
+      throw const LiveKitServiceException(
+        'Camera controls are unavailable because the local participant is missing.',
+      );
+    }
+
+    final publication = localParticipant.getTrackPublicationBySource(
+      TrackSource.camera,
+    );
+    final track = publication?.track;
+    if (track is! LocalVideoTrack) {
+      throw const LiveKitServiceException(
+        'No active local camera track is available to switch.',
+      );
+    }
+
+    try {
+      await track.setCameraPosition(position);
+    } catch (error) {
+      throw LiveKitServiceException('Could not switch the camera: $error');
+    }
+  }
+
+  Future<void> sendTextMessage(String text) async {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) {
+      return;
+    }
+
+    final localParticipant = _requireRoom().localParticipant;
+    if (localParticipant == null) {
+      throw const LiveKitServiceException(
+        'Text message controls are unavailable because the local participant is missing.',
+      );
+    }
+
+    try {
+      await localParticipant.sendText(
+        trimmed,
+        options: SendTextOptions(topic: 'lk.chat'),
+      );
+    } catch (error) {
+      throw LiveKitServiceException('Could not send text to Mila: $error');
     }
   }
 

@@ -39,6 +39,7 @@ class AppState extends ChangeNotifier {
   bool _isMicrophoneEnabled = false;
   bool _isCameraEnabled = false;
   bool _cameraEnabledOnConnect = false;
+  CameraPosition _cameraPosition = CameraPosition.front;
   List<String> _remoteParticipantNames = const <String>[];
   List<EmployeeRecord> _employeeDirectory = const <EmployeeRecord>[];
   bool _isEmployeeDirectoryLoading = false;
@@ -53,6 +54,17 @@ class AppState extends ChangeNotifier {
   bool get isMicrophoneEnabled => _isMicrophoneEnabled;
   bool get isCameraEnabled =>
       isConnected ? _isCameraEnabled : _cameraEnabledOnConnect;
+  CameraPosition get cameraPosition => _cameraPosition;
+  bool get isUsingBackCamera => _cameraPosition == CameraPosition.back;
+  LocalVideoTrack? get localVideoTrack {
+    final participant = _liveKitService.room?.localParticipant;
+    final publication = participant?.getTrackPublicationBySource(
+      TrackSource.camera,
+    );
+    final track = publication?.track;
+    return track is LocalVideoTrack ? track : null;
+  }
+
   bool get canDisconnect => _liveKitService.room != null || isConnecting;
   List<String> get remoteParticipantNames =>
       List<String>.unmodifiable(_remoteParticipantNames);
@@ -164,7 +176,7 @@ class AppState extends ChangeNotifier {
     }
 
     if (!hasBackendBaseUrl) {
-      _setBlockingError('Set your backend URL in Settings before connecting.');
+      _setBlockingError('A backend URL is required before Mila can connect.');
       return;
     }
 
@@ -207,7 +219,10 @@ class AppState extends ChangeNotifier {
 
       if (_cameraEnabledOnConnect) {
         try {
-          await _liveKitService.setCameraEnabled(true);
+          await _liveKitService.setCameraEnabled(
+            true,
+            cameraCaptureOptions: _cameraCaptureOptions(),
+          );
           _isCameraEnabled = true;
         } on LiveKitServiceException catch (error) {
           _cameraEnabledOnConnect = false;
@@ -283,7 +298,10 @@ class AppState extends ChangeNotifier {
         await _ensureCameraPermission();
       }
 
-      await _liveKitService.setCameraEnabled(shouldEnable);
+      await _liveKitService.setCameraEnabled(
+        shouldEnable,
+        cameraCaptureOptions: shouldEnable ? _cameraCaptureOptions() : null,
+      );
       _isCameraEnabled = shouldEnable;
       _cameraEnabledOnConnect = shouldEnable;
       _errorMessage = null;
@@ -294,6 +312,50 @@ class AppState extends ChangeNotifier {
     } on LiveKitServiceException catch (error) {
       _errorMessage = error.message;
       _safeNotifyListeners();
+    }
+  }
+
+  Future<void> switchCameraFacing() async {
+    final nextPosition = _cameraPosition.switched();
+
+    if (!isConnected || !_isCameraEnabled || localVideoTrack == null) {
+      _cameraPosition = nextPosition;
+      _errorMessage = null;
+      _safeNotifyListeners();
+      return;
+    }
+
+    try {
+      await _liveKitService.setCameraPosition(nextPosition);
+      _cameraPosition = nextPosition;
+      _errorMessage = null;
+      _safeNotifyListeners();
+    } on LiveKitServiceException catch (error) {
+      _errorMessage = error.message;
+      _safeNotifyListeners();
+    }
+  }
+
+  Future<void> sendTextMessage(String text) async {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) {
+      return;
+    }
+
+    if (!isConnected) {
+      _errorMessage = 'Connect to Mila before sending a text message.';
+      _safeNotifyListeners();
+      return;
+    }
+
+    try {
+      await _liveKitService.sendTextMessage(trimmed);
+      _errorMessage = null;
+      _safeNotifyListeners();
+    } on LiveKitServiceException catch (error) {
+      _errorMessage = error.message;
+      _safeNotifyListeners();
+      rethrow;
     }
   }
 
@@ -481,6 +543,10 @@ class AppState extends ChangeNotifier {
     }
 
     return trimmed.replaceFirst(RegExp(r'/+$'), '');
+  }
+
+  CameraCaptureOptions _cameraCaptureOptions() {
+    return CameraCaptureOptions(cameraPosition: _cameraPosition);
   }
 
   String _formatDisconnectReason(DisconnectReason? reason) {

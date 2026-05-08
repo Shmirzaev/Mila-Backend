@@ -125,6 +125,7 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
   final FocusNode _composerFocus = FocusNode();
   final ScrollController _messageScroll = ScrollController();
   bool _darkMode = true;
+  bool _isSendingText = false;
   final List<_WebChatMessage> _messages = <_WebChatMessage>[
     _WebChatMessage(
       fromUser: false,
@@ -167,24 +168,41 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
     });
   }
 
-  void _sendText([String? predefined]) {
+  Future<void> _sendText([String? predefined]) async {
     final value = (predefined ?? _composer.text).trim();
-    if (value.isEmpty) {
+    if (value.isEmpty || _isSendingText) {
       return;
     }
 
     setState(() {
+      _isSendingText = true;
       _messages.add(_WebChatMessage(fromUser: true, text: value));
-      _messages.add(
-        const _WebChatMessage(
-          fromUser: false,
-          text: '\u0413\u043e\u043b\u043e\u0441\u043e\u0432\u043e\u0439 \u0440\u0435\u0436\u0438\u043c \u0430\u043a\u0442\u0438\u0432\u0435\u043d. \u041f\u0440\u043e\u0434\u043e\u043b\u0436\u0430\u0439\u0442\u0435 \u0433\u043e\u0432\u043e\u0440\u0438\u0442\u044c \u0441 Mila \u0432 \u043c\u0438\u043a\u0440\u043e\u0444\u043e\u043d.',
-        ),
-      );
       _composer.clear();
     });
     _queueScrollToBottom();
-    _composerFocus.requestFocus();
+    try {
+      await widget.appState.sendTextMessage(value);
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _messages.add(
+          _WebChatMessage(
+            fromUser: false,
+            text: '\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u043e\u0442\u043f\u0440\u0430\u0432\u0438\u0442\u044c: $error',
+          ),
+        );
+      });
+      _queueScrollToBottom();
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSendingText = false;
+        });
+      }
+      _composerFocus.requestFocus();
+    }
   }
 
   Future<void> _pickAttachment(_WebAttachmentKind kind) async {
@@ -573,7 +591,9 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
                                       textInputAction: TextInputAction.send,
                                       cursorColor: const Color(0xFFB5712A),
                                       keyboardType: TextInputType.text,
-                                      onSubmitted: (_) => _sendText(),
+                                      onSubmitted: (_) {
+                                        unawaited(_sendText());
+                                      },
                                       style: const TextStyle(
                                         color: Color(0xFF2A1D0E),
                                         fontSize: 14,
@@ -598,21 +618,35 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
                                   ),
                                   const SizedBox(width: 8),
                                   IconButton(
-                                    onPressed: _composer.text.trim().isEmpty
+                                    onPressed: (_isSendingText || _composer.text.trim().isEmpty)
                                         ? null
-                                        : _sendText,
+                                        : () {
+                                            unawaited(_sendText());
+                                          },
                                     style: IconButton.styleFrom(
-                                      backgroundColor: _composer.text.trim().isEmpty
+                                      backgroundColor:
+                                          (_isSendingText || _composer.text.trim().isEmpty)
                                           ? accent.withValues(alpha: 0.34)
                                           : accent,
                                       foregroundColor: const Color(0xFFFFF8EE),
                                       disabledForegroundColor: const Color(0xFFFFF8EE),
                                       fixedSize: const Size(34, 34),
                                     ),
-                                    icon: const Icon(
-                                      Icons.send_rounded,
-                                      size: 16,
-                                    ),
+                                    icon: _isSendingText
+                                        ? const SizedBox(
+                                            width: 14,
+                                            height: 14,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              valueColor: AlwaysStoppedAnimation<Color>(
+                                                Color(0xFFFFF8EE),
+                                              ),
+                                            ),
+                                          )
+                                        : const Icon(
+                                            Icons.send_rounded,
+                                            size: 16,
+                                          ),
                                   ),
                                 ],
                               ),
