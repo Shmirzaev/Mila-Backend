@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -186,32 +185,14 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
   }
 
   Future<void> _pickAttachment(_WebAttachmentKind kind) async {
-    final result = await FilePicker.platform.pickFiles(
-      allowMultiple: true,
-      type: kind == _WebAttachmentKind.image ? FileType.image : FileType.any,
-    );
-
-    if (!mounted || result == null || result.files.isEmpty) {
-      return;
-    }
-
-    final names = result.files
-        .map((file) => file.name.trim())
-        .where((name) => name.isNotEmpty)
-        .toList();
-    if (names.isEmpty) {
-      return;
-    }
-
-    final filesText = names.join(', ');
     final prefix = kind == _WebAttachmentKind.image ? 'Изображение' : 'Файл';
 
     setState(() {
-      _messages.add(_WebChatMessage(fromUser: true, text: '[$prefix] $filesText'));
+      _messages.add(_WebChatMessage(fromUser: true, text: '[$prefix] добавлено'));
       _messages.add(
         const _WebChatMessage(
           fromUser: false,
-          text: 'Вложение добавлено. Можете отправить сообщение или продолжить разговор.',
+          text: 'Вложение отмечено. Отправьте сообщение с описанием файла.',
         ),
       );
     });
