@@ -799,7 +799,7 @@ class _EmployeeCard extends StatelessWidget {
                             if (employee.position != null) employee.position!,
                             if (employee.departmentTitle != null)
                               employee.departmentTitle!,
-                          ].join(' Â· '),
+                          ].join(' · '),
                           style: theme.textTheme.bodyMedium?.copyWith(
                             color: secondary,
                           ),
