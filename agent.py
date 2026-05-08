@@ -61,9 +61,15 @@ def _env_float(name: str, default: float) -> float:
 
 
 MILA_REALTIME_MODEL = (
-    os.getenv("MILA_REALTIME_MODEL", "gemini-2.5-flash-native-audio-preview-12-2025").strip()
-    or "gemini-2.5-flash-native-audio-preview-12-2025"
+    os.getenv("MILA_REALTIME_MODEL", "gemini-3.1-flash-live-preview").strip()
+    or "gemini-3.1-flash-live-preview"
 )
+MILA_TEXT_MODEL = (
+    os.getenv("MILA_TEXT_MODEL", "gemini-2.5-flash").strip()
+    or "gemini-2.5-flash"
+)
+MILA_TEXT_TEMPERATURE = _env_float("MILA_TEXT_TEMPERATURE", 0.5)
+MILA_TEXT_MAX_OUTPUT_TOKENS = env_int("MILA_TEXT_MAX_OUTPUT_TOKENS", 700)
 MILA_STARTUP_MEMORY_LIMIT = env_int("MILA_STARTUP_MEMORY_LIMIT", 8)
 MILA_STARTUP_MEMORY_TIMEOUT_SECONDS = _env_float(
     "MILA_STARTUP_MEMORY_TIMEOUT_SECONDS",
@@ -716,6 +722,12 @@ def _clip_text(value: str, limit: int) -> str:
     return text[: max(0, limit - 3)].rstrip() + "..."
 
 
+def _instructions_to_text(value: str | object) -> str:
+    if isinstance(value, str):
+        return value
+    return str(value)
+
+
 def _message_has_content_type(message, content_type: str) -> bool:
     for content_item in getattr(message, "content", []):
         if getattr(content_item, "type", None) == content_type:
@@ -759,6 +771,52 @@ def _render_history_for_memory(chat_ctx: ChatContext) -> tuple[str, bool, int]:
     recent_messages = rendered_messages[-MILA_AUTO_MEMORY_MAX_MESSAGES :]
     transcript = _clip_text("\n".join(recent_messages), MILA_AUTO_MEMORY_MAX_CHARS)
     return transcript, had_vision, len(recent_messages)
+
+
+async def _generate_text_reply_with_secondary_model(
+    *,
+    text_llm: google.LLM,
+    instructions: str | object,
+    session_history: ChatContext,
+    user_text: str,
+) -> str:
+    chat_ctx = ChatContext.empty()
+    chat_ctx.add_message(
+        role="system",
+        content=_instructions_to_text(instructions),
+    )
+
+    history_excerpt, had_vision, _ = _render_history_for_memory(session_history)
+    if history_excerpt:
+        chat_ctx.add_message(
+            role="system",
+            content=(
+                "Recent conversation context from this room:\n"
+                f"{history_excerpt}"
+            ),
+        )
+    if had_vision:
+        chat_ctx.add_message(
+            role="system",
+            content=(
+                "Camera/video context was present in earlier turns. "
+                "If needed, mention uncertainty and ask a clarifying question."
+            ),
+        )
+
+    chat_ctx.add_message(role="user", content=user_text)
+
+    chunks: list[str] = []
+    async with text_llm.chat(chat_ctx=chat_ctx) as stream:
+        async for chunk in stream:
+            if chunk.delta and chunk.delta.content:
+                chunks.append(chunk.delta.content)
+
+    reply = "".join(chunks).strip()
+    if reply:
+        return reply
+
+    return "Извините, не получилось сформировать ответ на текст. Повторите, пожалуйста."
 
 
 def _normalize_memory_tags(*tag_groups: list[str] | tuple[str, ...]) -> list[str]:
@@ -993,6 +1051,41 @@ async def entrypoint(ctx: JobContext):
         ctx.connect(),
     )
 
+    assistant = Assistant(startup_memory=startup_memory)
+    text_llm = google.LLM(
+        model=MILA_TEXT_MODEL,
+        temperature=MILA_TEXT_TEMPERATURE,
+        max_output_tokens=MILA_TEXT_MAX_OUTPUT_TOKENS,
+    )
+    text_turn_lock = asyncio.Lock()
+
+    async def _text_input_cb(
+        sess: AgentSession,
+        ev: room_io.TextInputEvent,
+    ) -> None:
+        user_text = ev.text.strip()
+        if not user_text:
+            return
+
+        async with text_turn_lock:
+            history_snapshot = sess.history.copy()
+            try:
+                reply_text = await _generate_text_reply_with_secondary_model(
+                    text_llm=text_llm,
+                    instructions=assistant.instructions,
+                    session_history=history_snapshot,
+                    user_text=user_text,
+                )
+            except Exception as error:
+                print(f"WARNING: text fallback model failed: {error}")
+                reply_text = (
+                    "Извините, не получилось обработать текст сейчас. "
+                    "Попробуйте еще раз."
+                )
+
+            await sess.interrupt()
+            sess.say(reply_text, add_to_chat_ctx=True)
+
     session = AgentSession(
         llm=google.realtime.RealtimeModel(
             model=MILA_REALTIME_MODEL,
@@ -1004,11 +1097,11 @@ async def entrypoint(ctx: JobContext):
     _install_session_memory_autosave(session, ctx)
 
     await session.start(
-        agent=Assistant(startup_memory=startup_memory),
+        agent=assistant,
         room=ctx.room,
         room_options=room_io.RoomOptions(
             video_input=True,
-            text_input=True,
+            text_input=room_io.TextInputOptions(text_input_cb=_text_input_cb),
             text_output=True,
         ),
     )
