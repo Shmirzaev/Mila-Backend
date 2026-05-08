@@ -44,12 +44,24 @@ jobs:
       - name: Build web
         run: |
           REPO_NAME="${GITHUB_REPOSITORY#*/}"
+          set +e
           flutter build web \
             --release \
             --no-wasm-dry-run \
             --base-href "/${REPO_NAME}/" \
             --dart-define=MILA_DEFAULT_BACKEND_URL="https://mila-web.onrender.com" \
-            --dart-define=MILA_AUTO_CONNECT_ON_LAUNCH=true
+            --dart-define=MILA_AUTO_CONNECT_ON_LAUNCH=true \
+            > /tmp/flutter-web-build.log 2>&1
+          STATUS=$?
+          cat /tmp/flutter-web-build.log
+          if [ $STATUS -ne 0 ]; then
+            FIRST_ERROR="$(grep -m 1 -E 'Error:|Exception:|Failed to compile|Target .* failed' /tmp/flutter-web-build.log || true)"
+            if [ -z "$FIRST_ERROR" ]; then
+              FIRST_ERROR="$(tail -n 1 /tmp/flutter-web-build.log)"
+            fi
+            echo "::error title=Flutter Web Build Failed::$FIRST_ERROR"
+            exit $STATUS
+          fi
 
       - name: Configure Pages
         if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
