@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -127,7 +128,7 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
   final List<_WebChatMessage> _messages = <_WebChatMessage>[
     _WebChatMessage(
       fromUser: false,
-      text: 'Hello, I am Mila. Speak or type a message to start.',
+      text: 'Здравствуйте, я Mila. Говорите или напишите сообщение, чтобы начать.',
     ),
   ];
 
@@ -176,12 +177,78 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
       _messages.add(
         const _WebChatMessage(
           fromUser: false,
-          text: 'Voice mode is active. Keep talking with Mila on microphone.',
+          text: 'Голосовой режим активен. Продолжайте говорить с Mila в микрофон.',
         ),
       );
       _composer.clear();
     });
     _queueScrollToBottom();
+  }
+
+  Future<void> _pickAttachment(_WebAttachmentKind kind) async {
+    final result = await FilePicker.platform.pickFiles(
+      allowMultiple: true,
+      type: kind == _WebAttachmentKind.image ? FileType.image : FileType.any,
+    );
+
+    if (!mounted || result == null || result.files.isEmpty) {
+      return;
+    }
+
+    final names = result.files
+        .map((file) => file.name.trim())
+        .where((name) => name.isNotEmpty)
+        .toList();
+    if (names.isEmpty) {
+      return;
+    }
+
+    final filesText = names.join(', ');
+    final prefix = kind == _WebAttachmentKind.image ? 'Изображение' : 'Файл';
+
+    setState(() {
+      _messages.add(_WebChatMessage(fromUser: true, text: '[$prefix] $filesText'));
+      _messages.add(
+        const _WebChatMessage(
+          fromUser: false,
+          text: 'Вложение добавлено. Можете отправить сообщение или продолжить разговор.',
+        ),
+      );
+    });
+    _queueScrollToBottom();
+  }
+
+  Future<void> _showAttachChooser() async {
+    final choice = await showModalBottomSheet<_WebAttachmentKind>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: _surface(),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              ListTile(
+                leading: const Icon(Icons.image_outlined),
+                title: const Text('Добавить изображение'),
+                onTap: () => Navigator.of(context).pop(_WebAttachmentKind.image),
+              ),
+              ListTile(
+                leading: const Icon(Icons.attach_file_outlined),
+                title: const Text('Добавить файл'),
+                onTap: () => Navigator.of(context).pop(_WebAttachmentKind.file),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (choice == null) {
+      return;
+    }
+
+    await _pickAttachment(choice);
   }
 
   Color _bgColor() => _darkMode ? const Color(0xFF110E07) : const Color(0xFFFAF3E8);
@@ -199,13 +266,13 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
   String _connectionLabel() {
     switch (widget.appState.status) {
       case AppConnectionStatus.connected:
-        return 'Connected to MILA';
+        return 'Подключено к MILA';
       case AppConnectionStatus.connecting:
-        return 'Connecting...';
+        return 'Подключение...';
       case AppConnectionStatus.error:
-        return 'Connection error';
+        return 'Ошибка подключения';
       case AppConnectionStatus.disconnected:
-        return 'Disconnected';
+        return 'Отключено';
     }
   }
 
@@ -224,25 +291,15 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
 
   String _agentStateLabel() {
     if (widget.appState.isConnecting) {
-      return 'Connecting to Mila...';
+      return 'Подключение к Mila...';
     }
     if (widget.appState.remoteParticipantNames.isNotEmpty) {
-      return 'Mila is listening.';
+      return 'Mila слушает.';
     }
     if (widget.appState.isConnected) {
-      return 'Waiting for Mila to join the room.';
+      return 'Ожидание подключения Mila к комнате.';
     }
-    return 'Tap Start to connect to Mila.';
-  }
-
-  String _agentSubLabel() {
-    if (widget.appState.remoteParticipantNames.isNotEmpty) {
-      return 'LiveKit is connected and staff directory is synced.';
-    }
-    if (widget.appState.isConnected) {
-      return 'Assistant audio starts when the agent session becomes active.';
-    }
-    return 'The web client uses the same backend and worker as your APK build.';
+    return 'Нажмите Старт для подключения к Mila.';
   }
 
   @override
@@ -254,10 +311,12 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
     final border = _border();
     final connected = widget.appState.isConnected;
     final connecting = widget.appState.isConnecting;
-    final micLabel = widget.appState.isMicrophoneEnabled ? 'MIC ON' : 'MIC OFF';
+    final micLabel = widget.appState.isMicrophoneEnabled
+        ? 'МИКРОФОН ВКЛ'
+        : 'МИКРОФОН ВЫКЛ';
     final staffLabel = widget.appState.hasEmployeeDirectory
-        ? '${widget.appState.employeeDirectory.length} STAFF'
-        : 'STAFF SYNC';
+        ? '${widget.appState.employeeDirectory.length} СОТРУДНИКОВ'
+        : 'СИНХР. ШТАТА';
 
     return Scaffold(
       backgroundColor: _bgColor(),
@@ -296,7 +355,7 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: <Widget>[
                                 Text(
-                                  'PERSONAL AI · MILANA PREMIUM',
+                                  'ПЕРСОНАЛЬНЫЙ ИИ · MILANA PREMIUM',
                                   style: TextStyle(
                                     color: accent,
                                     fontSize: 10,
@@ -395,10 +454,17 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
                       ],
                       const SizedBox(height: 24),
                       Center(
-                        child: _WebVoiceOrb(
-                          active: connected || connecting,
-                          accent: accent,
-                          accentSoft: _accent2(),
+                        child: GestureDetector(
+                          onTap: () {
+                            if (!connected && !connecting) {
+                              unawaited(widget.onConnect());
+                            }
+                          },
+                          child: _WebVoiceOrb(
+                            active: connected || connecting,
+                            accent: accent,
+                            accentSoft: _accent2(),
+                          ),
                         ),
                       ),
                       const SizedBox(height: 14),
@@ -409,16 +475,6 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
                           color: textColor,
                           fontSize: 22,
                           fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _agentSubLabel(),
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: muted.withValues(alpha: 0.92),
-                          fontSize: 14,
-                          height: 1.5,
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -512,13 +568,21 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
                               padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
                               child: Row(
                                 children: <Widget>[
+                                  _WebInputIconButton(
+                                    icon: Icons.attach_file_outlined,
+                                    onTap: _showAttachChooser,
+                                  ),
+                                  const SizedBox(width: 6),
                                   Expanded(
                                     child: TextField(
                                       controller: _composer,
+                                      onChanged: (_) {
+                                        setState(() {});
+                                      },
                                       onSubmitted: (_) => _sendText(),
                                       style: TextStyle(color: textColor, fontSize: 13),
                                       decoration: InputDecoration(
-                                        hintText: 'Type a message...',
+                                        hintText: 'Введите сообщение...',
                                         hintStyle: TextStyle(
                                           color: muted.withValues(alpha: 0.72),
                                         ),
@@ -555,7 +619,7 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        'MILA · Milana Premium · Powered by LiveKit',
+                        'MILA · Milana Premium · Работает на LiveKit',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: muted.withValues(alpha: 0.8),
@@ -581,6 +645,8 @@ class _WebChatMessage {
   final bool fromUser;
   final String text;
 }
+
+enum _WebAttachmentKind { image, file }
 
 class _WebBackgroundOrb extends StatelessWidget {
   const _WebBackgroundOrb({required this.size, required this.color});
@@ -791,7 +857,34 @@ class _WebPowerButton extends StatelessWidget {
                   ? const Color(0xFFFFF8EE)
                   : const Color(0xFFC48E48),
             ),
-      tooltip: active ? 'Disconnect' : 'Connect',
+      tooltip: active ? 'Отключиться' : 'Подключиться',
+    );
+  }
+}
+
+class _WebInputIconButton extends StatelessWidget {
+  const _WebInputIconButton({
+    required this.icon,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final Future<void> Function() onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      onPressed: () => unawaited(onTap()),
+      style: IconButton.styleFrom(
+        backgroundColor: Colors.transparent,
+        foregroundColor: const Color(0xFFB5712A),
+        side: const BorderSide(
+          color: Color(0x33B5712A),
+        ),
+        fixedSize: const Size(34, 34),
+      ),
+      icon: Icon(icon, size: 16),
+      tooltip: 'Вложение',
     );
   }
 }
