@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -35,7 +36,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
     final palette = Theme.of(context).extension<MilaPalette>()!;
-    final inCall = appState.isConnected || appState.isConnecting;
+    final inCall = !kIsWeb && (appState.isConnected || appState.isConnecting);
 
     return Scaffold(
       backgroundColor: inCall
@@ -68,6 +69,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   key: const ValueKey<String>('connect-screen'),
                   appState: appState,
                   onConnect: context.read<AppState>().connect,
+                  onDisconnect: context.read<AppState>().disconnect,
                   onOpenSettings: () => _openSettings(context),
                   onRefreshEmployees: context
                       .read<AppState>()
@@ -89,6 +91,7 @@ class _ConnectScreen extends StatelessWidget {
   const _ConnectScreen({
     required this.appState,
     required this.onConnect,
+    required this.onDisconnect,
     required this.onOpenSettings,
     required this.onRefreshEmployees,
     super.key,
@@ -96,6 +99,7 @@ class _ConnectScreen extends StatelessWidget {
 
   final AppState appState;
   final Future<void> Function() onConnect;
+  final Future<void> Function() onDisconnect;
   final VoidCallback onOpenSettings;
   final Future<void> Function() onRefreshEmployees;
 
@@ -198,7 +202,9 @@ class _ConnectScreen extends StatelessWidget {
                                   child: ElevatedButton(
                                     onPressed: appState.isConnecting
                                         ? null
-                                        : onConnect,
+                                        : (appState.isConnected
+                                            ? onDisconnect
+                                            : onConnect),
                                     child: Row(
                                       mainAxisAlignment:
                                           MainAxisAlignment.center,
@@ -220,7 +226,9 @@ class _ConnectScreen extends StatelessWidget {
                                         Text(
                                           appState.isConnecting
                                               ? 'CONNECTING'
-                                              : 'TALK TO MILA',
+                                              : (appState.isConnected
+                                                  ? 'END CALL'
+                                                  : 'TALK TO MILA'),
                                         ),
                                       ],
                                     ),
@@ -799,7 +807,7 @@ class _EmployeeCard extends StatelessWidget {
                             if (employee.position != null) employee.position!,
                             if (employee.departmentTitle != null)
                               employee.departmentTitle!,
-                          ].join(' · '),
+                          ].join(' Â· '),
                           style: theme.textTheme.bodyMedium?.copyWith(
                             color: secondary,
                           ),
