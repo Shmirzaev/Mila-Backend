@@ -35,9 +35,19 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
+    if (kIsWeb) {
+      return _WebLiveScreen(
+        appState: appState,
+        onConnect: context.read<AppState>().connect,
+        onDisconnect: context.read<AppState>().disconnect,
+        onToggleMicrophone: context.read<AppState>().toggleMicrophone,
+        onToggleCamera: context.read<AppState>().toggleCamera,
+        onOpenSettings: () => _openSettings(context),
+      );
+    }
+
     final palette = Theme.of(context).extension<MilaPalette>()!;
-    // Keep web in the live-stage UI to match the custom MILA web concept.
-    final inCall = kIsWeb || appState.isConnected || appState.isConnecting;
+    final inCall = appState.isConnected || appState.isConnecting;
 
     return Scaffold(
       backgroundColor: inCall
@@ -86,6 +96,768 @@ class _HomeScreenState extends State<HomeScreen> {
     return Navigator.of(
       context,
     ).push(MaterialPageRoute<void>(builder: (_) => const SettingsScreen()));
+  }
+}
+
+class _WebLiveScreen extends StatefulWidget {
+  const _WebLiveScreen({
+    required this.appState,
+    required this.onConnect,
+    required this.onDisconnect,
+    required this.onToggleMicrophone,
+    required this.onToggleCamera,
+    required this.onOpenSettings,
+  });
+
+  final AppState appState;
+  final Future<void> Function() onConnect;
+  final Future<void> Function() onDisconnect;
+  final Future<void> Function() onToggleMicrophone;
+  final Future<void> Function() onToggleCamera;
+  final VoidCallback onOpenSettings;
+
+  @override
+  State<_WebLiveScreen> createState() => _WebLiveScreenState();
+}
+
+class _WebLiveScreenState extends State<_WebLiveScreen> {
+  static const List<String> _suggestions = <String>[
+    'Today priorities',
+    'Production status',
+    'Team directory',
+    'Send announcement',
+  ];
+
+  final TextEditingController _composer = TextEditingController();
+  final ScrollController _messageScroll = ScrollController();
+  bool _darkMode = true;
+  final List<_WebChatMessage> _messages = <_WebChatMessage>[
+    _WebChatMessage(
+      fromUser: false,
+      text: 'Hello, I am Mila. Speak or type a message to start.',
+    ),
+  ];
+
+  @override
+  void dispose() {
+    _composer.dispose();
+    _messageScroll.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleConnectTap() async {
+    if (widget.appState.isConnecting) {
+      return;
+    }
+
+    if (widget.appState.isConnected) {
+      await widget.onDisconnect();
+      return;
+    }
+
+    await widget.onConnect();
+  }
+
+  void _queueScrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_messageScroll.hasClients) {
+        return;
+      }
+
+      _messageScroll.animateTo(
+        _messageScroll.position.maxScrollExtent + 42,
+        duration: const Duration(milliseconds: 260),
+        curve: Curves.easeOutCubic,
+      );
+    });
+  }
+
+  void _sendText([String? predefined]) {
+    final value = (predefined ?? _composer.text).trim();
+    if (value.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      _messages.add(_WebChatMessage(fromUser: true, text: value));
+      _messages.add(
+        const _WebChatMessage(
+          fromUser: false,
+          text: 'Voice mode is active. Keep talking with Mila on microphone.',
+        ),
+      );
+      _composer.clear();
+    });
+    _queueScrollToBottom();
+  }
+
+  Color _bgColor() => _darkMode ? const Color(0xFF110E07) : const Color(0xFFFAF3E8);
+  Color _textColor() => _darkMode ? const Color(0xFFF0E4CC) : const Color(0xFF1E1108);
+  Color _mutedColor() => _darkMode ? const Color(0xFFC4A070) : const Color(0xFF7A5535);
+  Color _accent() => _darkMode ? const Color(0xFFC48E48) : const Color(0xFFB5712A);
+  Color _accent2() => _darkMode ? const Color(0xFFD4A870) : const Color(0xFFD4955A);
+  Color _surface() => _darkMode
+      ? const Color(0xFF1C1408).withValues(alpha: 0.86)
+      : Colors.white.withValues(alpha: 0.82);
+  Color _border() => _darkMode
+      ? const Color(0xFFC48E48).withValues(alpha: 0.18)
+      : const Color(0xFFB4783C).withValues(alpha: 0.24);
+
+  String _connectionLabel() {
+    switch (widget.appState.status) {
+      case AppConnectionStatus.connected:
+        return 'Connected to MILA';
+      case AppConnectionStatus.connecting:
+        return 'Connecting...';
+      case AppConnectionStatus.error:
+        return 'Connection error';
+      case AppConnectionStatus.disconnected:
+        return 'Disconnected';
+    }
+  }
+
+  Color _connectionDotColor() {
+    switch (widget.appState.status) {
+      case AppConnectionStatus.connected:
+        return const Color(0xFF4CAF7D);
+      case AppConnectionStatus.connecting:
+        return const Color(0xFFE8A857);
+      case AppConnectionStatus.error:
+        return const Color(0xFFE74C3C);
+      case AppConnectionStatus.disconnected:
+        return const Color(0xFF8A8A8A);
+    }
+  }
+
+  String _agentStateLabel() {
+    if (widget.appState.isConnecting) {
+      return 'Connecting to Mila...';
+    }
+    if (widget.appState.remoteParticipantNames.isNotEmpty) {
+      return 'Mila is listening.';
+    }
+    if (widget.appState.isConnected) {
+      return 'Waiting for Mila to join the room.';
+    }
+    return 'Tap Start to connect to Mila.';
+  }
+
+  String _agentSubLabel() {
+    if (widget.appState.remoteParticipantNames.isNotEmpty) {
+      return 'LiveKit is connected and staff directory is synced.';
+    }
+    if (widget.appState.isConnected) {
+      return 'Assistant audio starts when the agent session becomes active.';
+    }
+    return 'The web client uses the same backend and worker as your APK build.';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textColor = _textColor();
+    final accent = _accent();
+    final muted = _mutedColor();
+    final surface = _surface();
+    final border = _border();
+    final connected = widget.appState.isConnected;
+    final connecting = widget.appState.isConnecting;
+    final micLabel = widget.appState.isMicrophoneEnabled ? 'MIC ON' : 'MIC OFF';
+    final staffLabel = widget.appState.hasEmployeeDirectory
+        ? '${widget.appState.employeeDirectory.length} STAFF'
+        : 'STAFF SYNC';
+
+    return Scaffold(
+      backgroundColor: _bgColor(),
+      body: SafeArea(
+        child: Stack(
+          children: <Widget>[
+            Positioned(
+              top: 20,
+              left: 50,
+              child: _WebBackgroundOrb(
+                size: 360,
+                color: accent.withValues(alpha: _darkMode ? 0.16 : 0.20),
+              ),
+            ),
+            Positioned(
+              right: 40,
+              bottom: 40,
+              child: _WebBackgroundOrb(
+                size: 260,
+                color: _accent2().withValues(alpha: _darkMode ? 0.12 : 0.18),
+              ),
+            ),
+            Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 560),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: <Widget>[
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                Text(
+                                  'PERSONAL AI · MILANA PREMIUM',
+                                  style: TextStyle(
+                                    color: accent,
+                                    fontSize: 10,
+                                    letterSpacing: 2.4,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  'MILA',
+                                  style: TextStyle(
+                                    color: textColor,
+                                    fontSize: 48,
+                                    height: 0.96,
+                                    fontWeight: FontWeight.w300,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          _WebIconButton(
+                            icon: widget.appState.isCameraEnabled
+                                ? Icons.videocam
+                                : Icons.videocam_off,
+                            active: widget.appState.isCameraEnabled,
+                            onPressed: widget.onToggleCamera,
+                          ),
+                          const SizedBox(width: 8),
+                          _WebIconButton(
+                            icon: _darkMode ? Icons.wb_sunny_outlined : Icons.dark_mode_outlined,
+                            onPressed: () {
+                              setState(() {
+                                _darkMode = !_darkMode;
+                              });
+                            },
+                          ),
+                          const SizedBox(width: 8),
+                          _WebActionButton(
+                            label: connecting
+                                ? '...'
+                                : (connected ? 'END' : 'START'),
+                            active: connected,
+                            onPressed: _handleConnectTap,
+                          ),
+                          const SizedBox(width: 8),
+                          _WebIconButton(
+                            icon: Icons.settings_outlined,
+                            onPressed: widget.onOpenSettings,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: surface,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: border),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: <Widget>[
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                color: _connectionDotColor(),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              _connectionLabel().toUpperCase(),
+                              style: TextStyle(
+                                color: muted,
+                                fontSize: 11,
+                                letterSpacing: 1.4,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (widget.appState.errorMessage != null) ...<Widget>[
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            color: const Color(0xFFE74C3C).withValues(alpha: 0.16),
+                            border: Border.all(
+                              color: const Color(0xFFE74C3C).withValues(alpha: 0.34),
+                            ),
+                          ),
+                          child: Text(
+                            widget.appState.errorMessage!,
+                            style: const TextStyle(
+                              color: Color(0xFFF9B8AF),
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 24),
+                      Center(
+                        child: _WebVoiceOrb(
+                          active: connected || connecting,
+                          accent: accent,
+                          accentSoft: _accent2(),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Text(
+                        _agentStateLabel(),
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: textColor,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _agentSubLabel(),
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: muted.withValues(alpha: 0.92),
+                          fontSize: 14,
+                          height: 1.5,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Wrap(
+                        alignment: WrapAlignment.center,
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: <Widget>[
+                          _WebChip(
+                            label: micLabel,
+                            onTap: widget.onToggleMicrophone,
+                            color: accent,
+                            dark: _darkMode,
+                          ),
+                          _WebChip(
+                            label: staffLabel,
+                            onTap: widget.appState.hasBackendBaseUrl
+                                ? widget.appState.refreshEmployeeDirectory
+                                : widget.onOpenSettings,
+                            color: accent,
+                            dark: _darkMode,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 18),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: surface,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: border),
+                        ),
+                        child: Column(
+                          children: <Widget>[
+                            SizedBox(
+                              height: 224,
+                              child: ListView.builder(
+                                controller: _messageScroll,
+                                padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+                                itemCount: _messages.length,
+                                itemBuilder: (context, index) {
+                                  final message = _messages[index];
+                                  final bubbleColor = message.fromUser
+                                      ? LinearGradient(
+                                          colors: <Color>[
+                                            _accent2(),
+                                            accent,
+                                          ],
+                                        )
+                                      : null;
+
+                                  return Align(
+                                    alignment: message.fromUser
+                                        ? Alignment.centerRight
+                                        : Alignment.centerLeft,
+                                    child: Container(
+                                      margin: const EdgeInsets.only(bottom: 10),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 9,
+                                      ),
+                                      constraints: const BoxConstraints(maxWidth: 410),
+                                      decoration: BoxDecoration(
+                                        gradient: bubbleColor,
+                                        color: bubbleColor == null
+                                            ? (_darkMode
+                                                  ? Colors.white.withValues(alpha: 0.05)
+                                                  : Colors.white)
+                                            : null,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: message.fromUser
+                                            ? null
+                                            : Border.all(color: border),
+                                      ),
+                                      child: Text(
+                                        message.text,
+                                        style: TextStyle(
+                                          color: message.fromUser
+                                              ? const Color(0xFFFFF8EE)
+                                              : textColor,
+                                          fontSize: 13,
+                                          height: 1.45,
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                            Container(height: 1, color: border),
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
+                              child: Row(
+                                children: <Widget>[
+                                  Expanded(
+                                    child: TextField(
+                                      controller: _composer,
+                                      onSubmitted: (_) => _sendText(),
+                                      style: TextStyle(color: textColor, fontSize: 13),
+                                      decoration: InputDecoration(
+                                        hintText: 'Type a message...',
+                                        hintStyle: TextStyle(
+                                          color: muted.withValues(alpha: 0.72),
+                                        ),
+                                        border: InputBorder.none,
+                                        isDense: true,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Material(
+                                    color: _composer.text.trim().isEmpty
+                                        ? accent.withValues(alpha: 0.34)
+                                        : accent,
+                                    shape: const CircleBorder(),
+                                    child: InkWell(
+                                      customBorder: const CircleBorder(),
+                                      onTap: _sendText,
+                                      child: const SizedBox(
+                                        width: 34,
+                                        height: 34,
+                                        child: Icon(
+                                          Icons.send_rounded,
+                                          size: 16,
+                                          color: Color(0xFFFFF8EE),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        alignment: WrapAlignment.center,
+                        children: _suggestions
+                            .map(
+                              (item) => _WebChip(
+                                label: item,
+                                onTap: () => _sendText(item),
+                                color: accent,
+                                dark: _darkMode,
+                                compact: true,
+                              ),
+                            )
+                            .toList(),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'MILA · Milana Premium · Powered by LiveKit',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: muted.withValues(alpha: 0.8),
+                          fontSize: 10,
+                          letterSpacing: 1.3,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _WebChatMessage {
+  const _WebChatMessage({required this.fromUser, required this.text});
+
+  final bool fromUser;
+  final String text;
+}
+
+class _WebBackgroundOrb extends StatelessWidget {
+  const _WebBackgroundOrb({required this.size, required this.color});
+
+  final double size;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(
+            colors: <Color>[color, color.withValues(alpha: 0)],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _WebVoiceOrb extends StatefulWidget {
+  const _WebVoiceOrb({
+    required this.active,
+    required this.accent,
+    required this.accentSoft,
+  });
+
+  final bool active;
+  final Color accent;
+  final Color accentSoft;
+
+  @override
+  State<_WebVoiceOrb> createState() => _WebVoiceOrbState();
+}
+
+class _WebVoiceOrbState extends State<_WebVoiceOrb> {
+  late final Timer _timer;
+  double _phase = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(milliseconds: 150), (_) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _phase += 0.35;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final rippleOpacity = widget.active ? 0.34 : 0.08;
+    final bars = <double>[0.36, 0.82, 0.52, 0.72, 0.40];
+
+    return SizedBox(
+      width: 164,
+      height: 164,
+      child: Stack(
+        alignment: Alignment.center,
+        children: <Widget>[
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 260),
+            width: widget.active ? 140 : 124,
+            height: widget.active ? 140 : 124,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: widget.accent.withValues(alpha: rippleOpacity),
+              ),
+            ),
+          ),
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 260),
+            width: widget.active ? 112 : 104,
+            height: widget.active ? 112 : 104,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: RadialGradient(
+                colors: <Color>[widget.accentSoft, widget.accent],
+              ),
+              boxShadow: <BoxShadow>[
+                BoxShadow(
+                  color: widget.accent.withValues(alpha: widget.active ? 0.44 : 0.18),
+                  blurRadius: widget.active ? 36 : 20,
+                  spreadRadius: widget.active ? 2 : 0,
+                ),
+              ],
+            ),
+            child: Center(
+              child: SizedBox(
+                width: 56,
+                height: 42,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: List<Widget>.generate(bars.length, (index) {
+                    final factor = widget.active
+                        ? (bars[index] + 0.11 * math.sin(_phase + index * 0.75))
+                            .clamp(0.24, 0.90)
+                        : bars[index];
+                    return Container(
+                      width: index == 1 || index == 3 ? 8 : 6,
+                      height: 42 * factor,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF8EE),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    );
+                  }),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WebIconButton extends StatelessWidget {
+  const _WebIconButton({
+    required this.icon,
+    required this.onPressed,
+    this.active = false,
+  });
+
+  final IconData icon;
+  final bool active;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      onPressed: onPressed,
+      style: IconButton.styleFrom(
+        backgroundColor: active
+            ? const Color(0xFFC48E48)
+            : const Color(0xFFC48E48).withValues(alpha: 0.12),
+        foregroundColor: active ? const Color(0xFFFFF8EE) : const Color(0xFFC48E48),
+        side: BorderSide(
+          color: active
+              ? const Color(0xFFC48E48)
+              : const Color(0xFFC48E48).withValues(alpha: 0.24),
+        ),
+        fixedSize: const Size(38, 38),
+      ),
+      icon: Icon(icon, size: 16),
+    );
+  }
+}
+
+class _WebActionButton extends StatelessWidget {
+  const _WebActionButton({
+    required this.label,
+    required this.active,
+    required this.onPressed,
+  });
+
+  final String label;
+  final bool active;
+  final Future<void> Function() onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextButton(
+      onPressed: () => unawaited(onPressed()),
+      style: TextButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        backgroundColor: active
+            ? const Color(0xFFC48E48)
+            : const Color(0xFFC48E48).withValues(alpha: 0.12),
+        foregroundColor: active ? const Color(0xFFFFF8EE) : const Color(0xFFC48E48),
+        side: BorderSide(
+          color: active
+              ? const Color(0xFFC48E48)
+              : const Color(0xFFC48E48).withValues(alpha: 0.24),
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 10,
+          letterSpacing: 1.2,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+class _WebChip extends StatelessWidget {
+  const _WebChip({
+    required this.label,
+    required this.onTap,
+    required this.color,
+    required this.dark,
+    this.compact = false,
+  });
+
+  final String label;
+  final VoidCallback onTap;
+  final Color color;
+  final bool dark;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(999),
+      child: Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: compact ? 11 : 13,
+          vertical: compact ? 6 : 8,
+        ),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: dark ? 0.09 : 0.10),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: color.withValues(alpha: 0.24)),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: color,
+            fontSize: compact ? 11 : 12,
+            letterSpacing: 0.4,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
   }
 }
 
