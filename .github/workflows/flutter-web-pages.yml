@@ -46,6 +46,7 @@ jobs:
           REPO_NAME="${GITHUB_REPOSITORY#*/}"
           flutter build web \
             --release \
+            --no-wasm-dry-run \
             --base-href "/${REPO_NAME}/" \
             --dart-define=MILA_DEFAULT_BACKEND_URL="https://mila-web.onrender.com" \
             --dart-define=MILA_AUTO_CONNECT_ON_LAUNCH=true
