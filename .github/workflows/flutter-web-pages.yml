@@ -55,11 +55,14 @@ jobs:
           STATUS=$?
           cat /tmp/flutter-web-build.log
           if [ $STATUS -ne 0 ]; then
-            FIRST_ERROR="$(grep -m 1 -E 'Error:|Exception:|Failed to compile|Target .* failed' /tmp/flutter-web-build.log || true)"
-            if [ -z "$FIRST_ERROR" ]; then
-              FIRST_ERROR="$(tail -n 1 /tmp/flutter-web-build.log)"
+            ERROR_SNIPPET="$(awk '/Target dart2js failed:/{flag=1;count=0} flag{print;count++; if(count==40) exit}' /tmp/flutter-web-build.log)"
+            if [ -z "$ERROR_SNIPPET" ]; then
+              ERROR_SNIPPET="$(tail -n 40 /tmp/flutter-web-build.log)"
             fi
-            echo "::error title=Flutter Web Build Failed::$FIRST_ERROR"
+            ERROR_SNIPPET="${ERROR_SNIPPET//'%'/'%25'}"
+            ERROR_SNIPPET="${ERROR_SNIPPET//$'\n'/'%0A'}"
+            ERROR_SNIPPET="${ERROR_SNIPPET//$'\r'/'%0D'}"
+            echo "::error title=Flutter Web Build Failed::$ERROR_SNIPPET"
             exit $STATUS
           fi
 
