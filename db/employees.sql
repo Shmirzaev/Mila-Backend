@@ -87,13 +87,14 @@ ON telegram_targets(target_key);
 
 INSERT INTO departments (department_key, title, description)
 VALUES
-    ('management', 'Руководство', 'CEO, директора, руководители'),
-    ('sales', 'Отдел продаж', 'Менеджеры по продажам и клиенты'),
-    ('production', 'Производство', 'Общее производство'),
-    ('cutting', 'Закройный цех', 'Раскрой, лекала, настил'),
-    ('sewing', 'Швейный цех', 'Пошив изделий'),
-    ('warehouse', 'Склад', 'Остатки, приёмка, выдача'),
-    ('packing', 'Упаковка', 'Упаковка и подготовка заказов'),
-    ('accounting', 'Бухгалтерия', 'Финансы и документы'),
-    ('hr', 'HR', 'Кадры и сотрудники')
+    ('management', 'Management', 'CEO, directors, and company leadership'),
+    ('sales', 'Sales', 'Sales managers and client communication'),
+    ('production', 'Production', 'General production operations'),
+    ('cutting', 'Cutting', 'Cutting room, patterns, and fabric spreading'),
+    ('sewing', 'Sewing', 'Garment sewing operations'),
+    ('warehouse', 'Warehouse', 'Stock, receiving, and fulfillment'),
+    ('packing', 'Packing', 'Packing and order preparation'),
+    ('accounting', 'Accounting', 'Finance and documents'),
+    ('innovations', 'Innovations', 'Innovation projects, automation, and development'),
+    ('hr', 'HR', 'Human resources and employee operations')
 ON CONFLICT (department_key) DO NOTHING;

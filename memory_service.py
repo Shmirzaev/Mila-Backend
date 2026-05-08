@@ -4,6 +4,7 @@ import asyncio
 from typing import Any
 
 import asyncpg
+from db_retry import connect_with_retry
 from google import genai
 from google.genai import types
 from env_config import load_project_env
@@ -19,31 +20,37 @@ MEMORY_COMPANY_ID = os.getenv("MEMORY_COMPANY_ID", "milana_premium")
 EMBEDDING_MODEL = os.getenv("MEMORY_EMBEDDING_MODEL", "gemini-embedding-2")
 EMBEDDING_DIM = int(os.getenv("MEMORY_EMBEDDING_DIM", "768"))
 
-_pool: asyncpg.Pool | None = None
 _genai_client = genai.Client(api_key=GOOGLE_API_KEY)
 
 
-async def init_memory_pool() -> None:
-    global _pool
-
+def _require_database_url() -> str:
     if not DATABASE_URL:
         raise RuntimeError("DATABASE_URL is missing from the environment.")
+    return DATABASE_URL
 
-    if _pool is None:
-        _pool = await asyncpg.create_pool(
-            DATABASE_URL,
-            min_size=1,
-            max_size=10,
-            command_timeout=30,
-        )
+
+async def _connect() -> asyncpg.Connection:
+    return await connect_with_retry(_require_database_url())
+
+
+async def init_memory_pool() -> None:
+    """
+    Compatibility function.
+    We do not keep a global asyncpg pool because LiveKit tools may run in different event loops.
+    """
+    conn = await _connect()
+    try:
+        await conn.execute("SELECT 1")
+    finally:
+        await conn.close()
 
 
 async def close_memory_pool() -> None:
-    global _pool
-
-    if _pool is not None:
-        await _pool.close()
-        _pool = None
+    """
+    Compatibility no-op.
+    Memory service uses short-lived connections on the current event loop.
+    """
+    return None
 
 
 def _vector_to_pg(values: list[float]) -> str:
@@ -92,9 +99,6 @@ async def save_memory(
     user_id: str = MEMORY_USER_ID,
     company_id: str = MEMORY_COMPANY_ID,
 ) -> str:
-    if _pool is None:
-        await init_memory_pool()
-
     tags = tags or []
 
     clean_title = title.strip()
@@ -109,7 +113,8 @@ async def save_memory(
     embedding = await embed_text(document_text)
     embedding_pg = _vector_to_pg(embedding)
 
-    async with _pool.acquire() as conn:
+    conn = await _connect()
+    try:
         async with conn.transaction():
             memory_id = await conn.fetchval(
                 """
@@ -166,6 +171,8 @@ async def save_memory(
                 user_id,
                 clean_content,
             )
+    finally:
+        await conn.close()
 
     return f"Memory saved successfully. ID: {memory_id}"
 
@@ -175,9 +182,6 @@ async def search_memory(
     limit: int = 5,
     user_id: str = MEMORY_USER_ID,
 ) -> str:
-    if _pool is None:
-        await init_memory_pool()
-
     clean_query = query.strip()
 
     if not clean_query:
@@ -186,7 +190,8 @@ async def search_memory(
     query_embedding = await embed_text(_prepare_query(clean_query))
     query_embedding_pg = _vector_to_pg(query_embedding)
 
-    async with _pool.acquire() as conn:
+    conn = await _connect()
+    try:
         rows = await conn.fetch(
             """
             SELECT
@@ -209,6 +214,8 @@ async def search_memory(
             user_id,
             int(limit),
         )
+    finally:
+        await conn.close()
 
     if not rows:
         return "No relevant long-term memory found."
@@ -236,10 +243,8 @@ async def get_startup_memory(
     user_id: str = MEMORY_USER_ID,
     limit: int = 20,
 ) -> str:
-    if _pool is None:
-        await init_memory_pool()
-
-    async with _pool.acquire() as conn:
+    conn = await _connect()
+    try:
         rows = await conn.fetch(
             """
             SELECT
@@ -258,6 +263,8 @@ async def get_startup_memory(
             user_id,
             int(limit),
         )
+    finally:
+        await conn.close()
 
     if not rows:
         return "No saved long-term memory yet."
@@ -277,15 +284,13 @@ async def forget_memory(
     keyword: str,
     user_id: str = MEMORY_USER_ID,
 ) -> str:
-    if _pool is None:
-        await init_memory_pool()
-
     clean_keyword = keyword.strip()
 
     if not clean_keyword:
         return "Nothing was deleted: keyword is empty."
 
-    async with _pool.acquire() as conn:
+    conn = await _connect()
+    try:
         rows = await conn.fetch(
             """
             UPDATE ai_memory
@@ -318,6 +323,8 @@ async def forget_memory(
                 user_id,
                 row["content"],
             )
+    finally:
+        await conn.close()
 
     if not rows:
         return "No matching memory found to delete."
@@ -329,10 +336,8 @@ async def list_recent_memory(
     user_id: str = MEMORY_USER_ID,
     limit: int = 10,
 ) -> str:
-    if _pool is None:
-        await init_memory_pool()
-
-    async with _pool.acquire() as conn:
+    conn = await _connect()
+    try:
         rows = await conn.fetch(
             """
             SELECT
@@ -352,6 +357,8 @@ async def list_recent_memory(
             user_id,
             int(limit),
         )
+    finally:
+        await conn.close()
 
     if not rows:
         return "No saved memory yet."

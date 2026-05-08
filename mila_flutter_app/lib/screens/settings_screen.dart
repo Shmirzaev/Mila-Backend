@@ -116,7 +116,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               ),
                               _QuickInsertPill(
                                 label: 'Phone on Wi-Fi',
-                                value: 'http://YOUR_PC_LAN_IP:8000',
+                                value: 'http://10.100.50.39:8000',
                                 onTap: _fill,
                               ),
                               _QuickInsertPill(
@@ -156,7 +156,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ),
                             _SettingsLine(
                               title: 'Real iPhone or Android phone',
-                              value: 'http://YOUR_PC_LAN_IP:8000',
+                              value: 'http://10.100.50.39:8000',
                             ),
                             _SettingsLine(
                               title: 'Production',

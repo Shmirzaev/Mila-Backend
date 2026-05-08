@@ -1,1 +1,5 @@
 employee_no,full_name,short_name,department_key,position,phone,telegram_username,telegram_chat_id,access_level,status,notes
+1,Бекназар Эминжанов,Бекназар,management,CEO,+998901111111,@beknazar,,ceo,active,Руководитель компании
+2,Алиев Бахром,Бахром,sales,Менеджер по продажам,+998901234567,@bakhrom,,employee,active,
+3,Каримова Мадина,Мадина,warehouse,Склад менеджер,+998901111111,@madina,,manager,active,
+4,Мирзаев Шавкатбек,Шавкат,innovations,Менеджер,+998937823235,@sh_mirzayev,1177019723,manager,active,

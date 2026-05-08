@@ -1,7 +1,7 @@
 import os
 import uuid
 import json
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from livekit.api import (
@@ -14,6 +14,7 @@ from livekit.api import (
 
 from employee_service import get_all_active_employees_data
 from env_config import LOADED_ENV_FILES, env_bool, env_int, load_project_env
+from telegram_service import send_staff_attachment
 
 
 load_project_env()
@@ -167,6 +168,43 @@ async def employees(limit: int = 200):
     return {
         "employees": items,
         "count": len(items),
+    }
+
+
+@app.post("/telegram/staff-upload")
+async def telegram_staff_upload(
+    file: UploadFile = File(...),
+    message: str = Form(""),
+    participant_name: str = Form(""),
+    participant_identity: str = Form(""),
+    source: str = Form("flutter"),
+):
+    filename = (file.filename or "").strip() or "attachment"
+
+    try:
+        content = await file.read()
+        result = await send_staff_attachment(
+            filename=filename,
+            content=content,
+            participant_name=participant_name,
+            participant_identity=participant_identity,
+            participant_source=source,
+            message=message,
+            content_type=file.content_type,
+        )
+    except RuntimeError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    except Exception as error:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Could not send attachment to Telegram: {error}",
+        ) from error
+
+    return {
+        "ok": True,
+        "message": "Attachment sent to Telegram.",
+        "filename": filename,
+        "telegram_result": result,
     }
 
 @app.get("/debug-env")

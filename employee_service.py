@@ -3,6 +3,7 @@ import html
 import json
 
 import asyncpg
+from db_retry import connect_with_retry
 from env_config import load_project_env
 
 
@@ -18,7 +19,7 @@ def _require_database_url() -> str:
 
 
 async def _connect() -> asyncpg.Connection:
-    return await asyncpg.connect(_require_database_url())
+    return await connect_with_retry(_require_database_url())
 
 
 def _employee_summary_from_row(row: asyncpg.Record) -> dict:
