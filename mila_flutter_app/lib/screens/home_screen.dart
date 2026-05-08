@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -122,18 +122,20 @@ class _WebLiveScreen extends StatefulWidget {
 
 class _WebLiveScreenState extends State<_WebLiveScreen> {
   final TextEditingController _composer = TextEditingController();
+  final FocusNode _composerFocus = FocusNode();
   final ScrollController _messageScroll = ScrollController();
   bool _darkMode = true;
   final List<_WebChatMessage> _messages = <_WebChatMessage>[
     _WebChatMessage(
       fromUser: false,
-      text: 'Здравствуйте, я Mila. Говорите или напишите сообщение, чтобы начать.',
+      text: 'Р—РґСЂР°РІСЃС‚РІСѓР№С‚Рµ, СЏ Mila. Р“РѕРІРѕСЂРёС‚Рµ РёР»Рё РЅР°РїРёС€РёС‚Рµ СЃРѕРѕР±С‰РµРЅРёРµ, С‡С‚РѕР±С‹ РЅР°С‡Р°С‚СЊ.',
     ),
   ];
 
   @override
   void dispose() {
     _composer.dispose();
+    _composerFocus.dispose();
     _messageScroll.dispose();
     super.dispose();
   }
@@ -176,23 +178,24 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
       _messages.add(
         const _WebChatMessage(
           fromUser: false,
-          text: 'Голосовой режим активен. Продолжайте говорить с Mila в микрофон.',
+          text: 'Р“РѕР»РѕСЃРѕРІРѕР№ СЂРµР¶РёРј Р°РєС‚РёРІРµРЅ. РџСЂРѕРґРѕР»Р¶Р°Р№С‚Рµ РіРѕРІРѕСЂРёС‚СЊ СЃ Mila РІ РјРёРєСЂРѕС„РѕРЅ.',
         ),
       );
       _composer.clear();
     });
     _queueScrollToBottom();
+    _composerFocus.requestFocus();
   }
 
   Future<void> _pickAttachment(_WebAttachmentKind kind) async {
-    final prefix = kind == _WebAttachmentKind.image ? 'Изображение' : 'Файл';
+    final prefix = kind == _WebAttachmentKind.image ? 'РР·РѕР±СЂР°Р¶РµРЅРёРµ' : 'Р¤Р°Р№Р»';
 
     setState(() {
-      _messages.add(_WebChatMessage(fromUser: true, text: '[$prefix] добавлено'));
+      _messages.add(_WebChatMessage(fromUser: true, text: '[$prefix] РґРѕР±Р°РІР»РµРЅРѕ'));
       _messages.add(
         const _WebChatMessage(
           fromUser: false,
-          text: 'Вложение отмечено. Отправьте сообщение с описанием файла.',
+          text: 'Р’Р»РѕР¶РµРЅРёРµ РѕС‚РјРµС‡РµРЅРѕ. РћС‚РїСЂР°РІСЊС‚Рµ СЃРѕРѕР±С‰РµРЅРёРµ СЃ РѕРїРёСЃР°РЅРёРµРј С„Р°Р№Р»Р°.',
         ),
       );
     });
@@ -210,12 +213,12 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
             children: <Widget>[
               ListTile(
                 leading: const Icon(Icons.image_outlined),
-                title: const Text('Добавить изображение'),
+                title: const Text('Р”РѕР±Р°РІРёС‚СЊ РёР·РѕР±СЂР°Р¶РµРЅРёРµ'),
                 onTap: () => Navigator.of(context).pop(_WebAttachmentKind.image),
               ),
               ListTile(
                 leading: const Icon(Icons.attach_file_outlined),
-                title: const Text('Добавить файл'),
+                title: const Text('Р”РѕР±Р°РІРёС‚СЊ С„Р°Р№Р»'),
                 onTap: () => Navigator.of(context).pop(_WebAttachmentKind.file),
               ),
             ],
@@ -246,13 +249,13 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
   String _connectionLabel() {
     switch (widget.appState.status) {
       case AppConnectionStatus.connected:
-        return 'Подключено к MILA';
+        return 'РџРѕРґРєР»СЋС‡РµРЅРѕ Рє MILA';
       case AppConnectionStatus.connecting:
-        return 'Подключение...';
+        return 'РџРѕРґРєР»СЋС‡РµРЅРёРµ...';
       case AppConnectionStatus.error:
-        return 'Ошибка подключения';
+        return 'РћС€РёР±РєР° РїРѕРґРєР»СЋС‡РµРЅРёСЏ';
       case AppConnectionStatus.disconnected:
-        return 'Отключено';
+        return 'РћС‚РєР»СЋС‡РµРЅРѕ';
     }
   }
 
@@ -271,15 +274,15 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
 
   String _agentStateLabel() {
     if (widget.appState.isConnecting) {
-      return 'Подключение к Mila...';
+      return 'РџРѕРґРєР»СЋС‡РµРЅРёРµ Рє Mila...';
     }
     if (widget.appState.remoteParticipantNames.isNotEmpty) {
-      return 'Mila слушает.';
+      return 'Mila СЃР»СѓС€Р°РµС‚.';
     }
     if (widget.appState.isConnected) {
-      return 'Ожидание подключения Mila к комнате.';
+      return 'РћР¶РёРґР°РЅРёРµ РїРѕРґРєР»СЋС‡РµРЅРёСЏ Mila Рє РєРѕРјРЅР°С‚Рµ.';
     }
-    return 'Нажмите Старт для подключения к Mila.';
+    return 'РќР°Р¶РјРёС‚Рµ РЎС‚Р°СЂС‚ РґР»СЏ РїРѕРґРєР»СЋС‡РµРЅРёСЏ Рє Mila.';
   }
 
   @override
@@ -292,11 +295,11 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
     final connected = widget.appState.isConnected;
     final connecting = widget.appState.isConnecting;
     final micLabel = widget.appState.isMicrophoneEnabled
-        ? 'МИКРОФОН ВКЛ'
-        : 'МИКРОФОН ВЫКЛ';
+        ? 'РњРРљР РћР¤РћРќ Р’РљР›'
+        : 'РњРРљР РћР¤РћРќ Р’Р«РљР›';
     final staffLabel = widget.appState.hasEmployeeDirectory
-        ? '${widget.appState.employeeDirectory.length} СОТРУДНИКОВ'
-        : 'СИНХР. ШТАТА';
+        ? '${widget.appState.employeeDirectory.length} РЎРћРўР РЈР”РќРРљРћР’'
+        : 'РЎРРќРҐР . РЁРўРђРўРђ';
 
     return Scaffold(
       backgroundColor: _bgColor(),
@@ -335,7 +338,7 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: <Widget>[
                                 Text(
-                                  'ПЕРСОНАЛЬНЫЙ ИИ · MILANA PREMIUM',
+                                  'РџР•Р РЎРћРќРђР›Р¬РќР«Р™ РР В· MILANA PREMIUM',
                                   style: TextStyle(
                                     color: accent,
                                     fontSize: 10,
@@ -556,15 +559,30 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
                                   Expanded(
                                     child: TextField(
                                       controller: _composer,
+                                      focusNode: _composerFocus,
                                       onChanged: (_) {
                                         setState(() {});
                                       },
+                                      textInputAction: TextInputAction.send,
+                                      cursorColor: const Color(0xFFB5712A),
+                                      keyboardType: TextInputType.text,
                                       onSubmitted: (_) => _sendText(),
-                                      style: TextStyle(color: textColor, fontSize: 13),
+                                      style: const TextStyle(
+                                        color: Color(0xFF2A1D0E),
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w500,
+                                      ),
                                       decoration: InputDecoration(
                                         hintText: 'Введите сообщение...',
-                                        hintStyle: TextStyle(
-                                          color: muted.withValues(alpha: 0.72),
+                                        hintStyle: const TextStyle(
+                                          color: Color(0xFF9A805F),
+                                          fontSize: 14,
+                                        ),
+                                        filled: true,
+                                        fillColor: const Color(0xFFF7F6F4),
+                                        contentPadding: const EdgeInsets.symmetric(
+                                          horizontal: 16,
+                                          vertical: 12,
                                         ),
                                         border: InputBorder.none,
                                         isDense: true,
@@ -572,23 +590,21 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
                                     ),
                                   ),
                                   const SizedBox(width: 8),
-                                  Material(
-                                    color: _composer.text.trim().isEmpty
-                                        ? accent.withValues(alpha: 0.34)
-                                        : accent,
-                                    shape: const CircleBorder(),
-                                    child: InkWell(
-                                      customBorder: const CircleBorder(),
-                                      onTap: _sendText,
-                                      child: const SizedBox(
-                                        width: 34,
-                                        height: 34,
-                                        child: Icon(
-                                          Icons.send_rounded,
-                                          size: 16,
-                                          color: Color(0xFFFFF8EE),
-                                        ),
-                                      ),
+                                  IconButton(
+                                    onPressed: _composer.text.trim().isEmpty
+                                        ? null
+                                        : _sendText,
+                                    style: IconButton.styleFrom(
+                                      backgroundColor: _composer.text.trim().isEmpty
+                                          ? accent.withValues(alpha: 0.34)
+                                          : accent,
+                                      foregroundColor: const Color(0xFFFFF8EE),
+                                      disabledForegroundColor: const Color(0xFFFFF8EE),
+                                      fixedSize: const Size(34, 34),
+                                    ),
+                                    icon: const Icon(
+                                      Icons.send_rounded,
+                                      size: 16,
                                     ),
                                   ),
                                 ],
@@ -599,7 +615,7 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        'MILA · Milana Premium · Работает на LiveKit',
+                        'MILA В· Milana Premium В· Р Р°Р±РѕС‚Р°РµС‚ РЅР° LiveKit',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: muted.withValues(alpha: 0.8),
@@ -837,7 +853,7 @@ class _WebPowerButton extends StatelessWidget {
                   ? const Color(0xFFFFF8EE)
                   : const Color(0xFFC48E48),
             ),
-      tooltip: active ? 'Отключиться' : 'Подключиться',
+      tooltip: active ? 'РћС‚РєР»СЋС‡РёС‚СЊСЃСЏ' : 'РџРѕРґРєР»СЋС‡РёС‚СЊСЃСЏ',
     );
   }
 }
@@ -864,7 +880,7 @@ class _WebInputIconButton extends StatelessWidget {
         fixedSize: const Size(34, 34),
       ),
       icon: Icon(icon, size: 16),
-      tooltip: 'Вложение',
+      tooltip: 'Р’Р»РѕР¶РµРЅРёРµ',
     );
   }
 }
@@ -1246,7 +1262,7 @@ class _CallHeader extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               Text(
-                'PERSONAL AI · MILANA PREMIUM',
+                'PERSONAL AI В· MILANA PREMIUM',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: palette.blue500.withValues(alpha: 0.9),
                   fontSize: 10,
@@ -1705,7 +1721,7 @@ class _EmployeeCard extends StatelessWidget {
                             if (employee.position != null) employee.position!,
                             if (employee.departmentTitle != null)
                               employee.departmentTitle!,
-                          ].join(' · '),
+                          ].join(' В· '),
                           style: theme.textTheme.bodyMedium?.copyWith(
                             color: secondary,
                           ),
