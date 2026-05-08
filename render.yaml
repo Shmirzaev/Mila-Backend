@@ -1,0 +1,84 @@
+services:
+  - type: web
+    runtime: docker
+    name: mila-web
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - key: MILA_SERVICE_MODE
+        value: web
+      - key: LIVEKIT_AGENT_COMMAND
+        value: start
+      - key: HOST
+        value: 0.0.0.0
+      - key: UVICORN_RELOAD
+        value: "false"
+      - key: LIVEKIT_URL
+        sync: false
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false
+      - key: GOOGLE_API_KEY
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_STAFF_CHAT_ID
+        sync: false
+      - key: MEMORY_USER_ID
+        sync: false
+      - key: MEMORY_COMPANY_ID
+        sync: false
+      - key: MEMORY_EMBEDDING_MODEL
+        value: gemini-embedding-2
+      - key: MEMORY_EMBEDDING_DIM
+        value: "768"
+      - key: CORS_ALLOW_ORIGINS
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: mila-postgres
+          property: connectionString
+
+  - type: worker
+    runtime: docker
+    name: mila-worker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    dockerCommand: python service_runner.py
+    envVars:
+      - key: MILA_SERVICE_MODE
+        value: worker
+      - key: LIVEKIT_AGENT_COMMAND
+        value: start
+      - key: LIVEKIT_URL
+        sync: false
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false
+      - key: GOOGLE_API_KEY
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_STAFF_CHAT_ID
+        sync: false
+      - key: MEMORY_USER_ID
+        sync: false
+      - key: MEMORY_COMPANY_ID
+        sync: false
+      - key: MEMORY_EMBEDDING_MODEL
+        value: gemini-embedding-2
+      - key: MEMORY_EMBEDDING_DIM
+        value: "768"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: mila-postgres
+          property: connectionString
+
+databases:
+  - name: mila-postgres
+    plan: basic-256mb

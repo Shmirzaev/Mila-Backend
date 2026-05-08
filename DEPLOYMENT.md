@@ -7,16 +7,36 @@ This backend is designed to run as two deployed services that share the same rep
 
 Both services also need a PostgreSQL database with the `pgvector` extension enabled.
 
+## 0. Blueprint deploy (Render)
+
+This repository includes a Render Blueprint file at [`render.yaml`](./render.yaml).
+
+Fast path:
+
+1. Push this repo to GitHub.
+2. In Render, create a new **Blueprint** from the repository.
+3. Render creates:
+   - `mila-web` (web service)
+   - `mila-worker` (background worker)
+   - `mila-postgres` (PostgreSQL)
+4. Fill all `sync: false` variables during setup (use [`.env.render.example`](./.env.render.example) as a checklist).
+
 ## 1. Prepare the repository for GitHub
 
 The root `.gitignore` now excludes:
 
 - `.env.local` and other local secret files
+- `.env.render-*` secret env files
 - virtual environments
 - `data/` PostgreSQL volumes
 - `imports/*.csv` employee data files
 - generated Flutter and Android artifacts
 - local keystores and backup SQL dumps
+
+GitHub workflows included:
+
+- `.github/workflows/backend-verify.yml`
+- `.github/workflows/flutter-web-pages.yml`
 
 Before your first push:
 

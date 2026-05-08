@@ -1,0 +1,51 @@
+name: Backend Verify
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**/*.py"
+      - "Dockerfile"
+      - "requirements.txt"
+      - ".github/workflows/backend-verify.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "**/*.py"
+      - "Dockerfile"
+      - "requirements.txt"
+      - ".github/workflows/backend-verify.yml"
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Compile Python files
+        run: |
+          python - <<'PY'
+          import py_compile
+          import subprocess
+
+          files = subprocess.check_output(
+              ["git", "ls-files", "*.py"], text=True
+          ).splitlines()
+          if not files:
+              raise SystemExit("No tracked Python files found.")
+
+          for path in files:
+              py_compile.compile(path, doraise=True)
+
+          print(f"Compiled {len(files)} Python files successfully.")
+          PY
+
+      - name: Build Docker image
+        run: docker build -t mila-backend:ci .

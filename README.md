@@ -114,8 +114,22 @@ The backend is now prepared for GitHub and hosted deployment:
 - `Dockerfile` builds a backend image for both the API and the worker
 - `service_runner.py` lets the same image run as a web service, worker, database bootstrap job, or employee import job
 - `bootstrap_database.py` safely creates the required hosted PostgreSQL schema without dropping existing employee data
+- `.github/workflows/backend-verify.yml` runs backend syntax + Docker image checks on GitHub
+- `.github/workflows/flutter-web-pages.yml` builds Flutter web on pull requests and deploys to GitHub Pages from `main`
+- `render.yaml` provisions web + worker + Postgres on Render from this repository
+- `.env.render.example` gives a safe env template for hosted deployment
 
 For the exact deployment workflow, see [`DEPLOYMENT.md`](./DEPLOYMENT.md).
+
+### Fast launch from GitHub
+
+1. Push this repository to GitHub.
+2. On Render, create a new **Blueprint** service from the repo (`render.yaml`).
+3. Provide required secret values when prompted (`sync: false` variables).
+4. In GitHub, enable **Pages** for this repository (GitHub Actions source).
+5. Push to `main` to trigger both:
+   - backend verification (`Backend Verify`)
+   - Flutter web deploy (`Flutter Web (Pages)`)
 
 ## Flutter apps
 

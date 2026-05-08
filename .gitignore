@@ -2,7 +2,9 @@
 .env
 .env.local
 .env.*.local
+.env.render-*
 !.env.example
+!.env.render.example
 
 # Python
 __pycache__/
