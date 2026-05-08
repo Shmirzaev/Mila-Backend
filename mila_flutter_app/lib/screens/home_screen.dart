@@ -121,13 +121,6 @@ class _WebLiveScreen extends StatefulWidget {
 }
 
 class _WebLiveScreenState extends State<_WebLiveScreen> {
-  static const List<String> _suggestions = <String>[
-    'Today priorities',
-    'Production status',
-    'Team directory',
-    'Send announcement',
-  ];
-
   final TextEditingController _composer = TextEditingController();
   final ScrollController _messageScroll = ScrollController();
   bool _darkMode = true;
@@ -341,17 +334,10 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
                             },
                           ),
                           const SizedBox(width: 8),
-                          _WebActionButton(
-                            label: connecting
-                                ? '...'
-                                : (connected ? 'END' : 'START'),
+                          _WebPowerButton(
                             active: connected,
                             onPressed: _handleConnectTap,
-                          ),
-                          const SizedBox(width: 8),
-                          _WebIconButton(
-                            icon: Icons.settings_outlined,
-                            onPressed: widget.onOpenSettings,
+                            connecting: connecting,
                           ),
                         ],
                       ),
@@ -568,23 +554,6 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        alignment: WrapAlignment.center,
-                        children: _suggestions
-                            .map(
-                              (item) => _WebChip(
-                                label: item,
-                                onTap: () => _sendText(item),
-                                color: accent,
-                                dark: _darkMode,
-                                compact: true,
-                              ),
-                            )
-                            .toList(),
-                      ),
-                      const SizedBox(height: 12),
                       Text(
                         'MILA · Milana Premium · Powered by LiveKit',
                         textAlign: TextAlign.center,
@@ -777,23 +746,22 @@ class _WebIconButton extends StatelessWidget {
   }
 }
 
-class _WebActionButton extends StatelessWidget {
-  const _WebActionButton({
-    required this.label,
+class _WebPowerButton extends StatelessWidget {
+  const _WebPowerButton({
     required this.active,
+    required this.connecting,
     required this.onPressed,
   });
 
-  final String label;
   final bool active;
+  final bool connecting;
   final Future<void> Function() onPressed;
 
   @override
   Widget build(BuildContext context) {
-    return TextButton(
+    return IconButton(
       onPressed: () => unawaited(onPressed()),
-      style: TextButton.styleFrom(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+      style: IconButton.styleFrom(
         backgroundColor: active
             ? const Color(0xFFC48E48)
             : const Color(0xFFC48E48).withValues(alpha: 0.12),
@@ -803,16 +771,27 @@ class _WebActionButton extends StatelessWidget {
               ? const Color(0xFFC48E48)
               : const Color(0xFFC48E48).withValues(alpha: 0.24),
         ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        fixedSize: const Size(42, 42),
       ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          fontSize: 10,
-          letterSpacing: 1.2,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
+      icon: connecting
+          ? const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  Color(0xFFFFF8EE),
+                ),
+              ),
+            )
+          : Icon(
+              Icons.power_settings_new,
+              size: 18,
+              color: active
+                  ? const Color(0xFFFFF8EE)
+                  : const Color(0xFFC48E48),
+            ),
+      tooltip: active ? 'Disconnect' : 'Connect',
     );
   }
 }
@@ -823,14 +802,12 @@ class _WebChip extends StatelessWidget {
     required this.onTap,
     required this.color,
     required this.dark,
-    this.compact = false,
   });
 
   final String label;
   final VoidCallback onTap;
   final Color color;
   final bool dark;
-  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -838,10 +815,7 @@ class _WebChip extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(999),
       child: Container(
-        padding: EdgeInsets.symmetric(
-          horizontal: compact ? 11 : 13,
-          vertical: compact ? 6 : 8,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
         decoration: BoxDecoration(
           color: color.withValues(alpha: dark ? 0.09 : 0.10),
           borderRadius: BorderRadius.circular(999),
@@ -851,7 +825,7 @@ class _WebChip extends StatelessWidget {
           label,
           style: TextStyle(
             color: color,
-            fontSize: compact ? 11 : 12,
+            fontSize: 12,
             letterSpacing: 0.4,
             fontWeight: FontWeight.w600,
           ),
