@@ -221,7 +221,6 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
   Future<void> _showAttachChooser() async {
     final choice = await showModalBottomSheet<_WebAttachmentKind>(
       context: context,
-      showDragHandle: true,
       backgroundColor: _surface(),
       builder: (context) {
         return SafeArea(
