@@ -345,7 +345,9 @@ class AppState extends ChangeNotifier {
     if (!isConnected) {
       _errorMessage = 'Connect to Mila before sending a text message.';
       _safeNotifyListeners();
-      return;
+      throw const LiveKitServiceException(
+        'Connect to Mila before sending a text message.',
+      );
     }
 
     try {

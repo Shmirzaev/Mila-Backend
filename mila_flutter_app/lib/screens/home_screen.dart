@@ -173,6 +173,18 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
     if (value.isEmpty || _isSendingText) {
       return;
     }
+    if (!widget.appState.isConnected) {
+      setState(() {
+        _messages.add(
+          const _WebChatMessage(
+            fromUser: false,
+            text: '\u0421\u043d\u0430\u0447\u0430\u043b\u0430 \u043d\u0430\u0436\u043c\u0438\u0442\u0435 \u0421\u0442\u0430\u0440\u0442 \u0438 \u043f\u043e\u0434\u043a\u043b\u044e\u0447\u0438\u0442\u0435 Mila.',
+          ),
+        );
+      });
+      _queueScrollToBottom();
+      return;
+    }
 
     setState(() {
       _isSendingText = true;
@@ -618,14 +630,19 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
                                   ),
                                   const SizedBox(width: 8),
                                   IconButton(
-                                    onPressed: (_isSendingText || _composer.text.trim().isEmpty)
+                                    onPressed:
+                                        (!connected ||
+                                            _isSendingText ||
+                                            _composer.text.trim().isEmpty)
                                         ? null
                                         : () {
                                             unawaited(_sendText());
                                           },
                                     style: IconButton.styleFrom(
                                       backgroundColor:
-                                          (_isSendingText || _composer.text.trim().isEmpty)
+                                          (!connected ||
+                                              _isSendingText ||
+                                              _composer.text.trim().isEmpty)
                                           ? accent.withValues(alpha: 0.34)
                                           : accent,
                                       foregroundColor: const Color(0xFFFFF8EE),
