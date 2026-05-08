@@ -1,8 +1,9 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:livekit_client/livekit_client.dart';
 import 'package:provider/provider.dart';
 
 import '../main.dart';
@@ -121,24 +122,100 @@ class _WebLiveScreen extends StatefulWidget {
 }
 
 class _WebLiveScreenState extends State<_WebLiveScreen> {
+  static const String _chatTopic = 'lk.chat';
+
   final TextEditingController _composer = TextEditingController();
   final FocusNode _composerFocus = FocusNode();
   final ScrollController _messageScroll = ScrollController();
   bool _darkMode = true;
   bool _isSendingText = false;
+  Room? _chatRoom;
+  final Set<String> _seenIncomingStreamIds = <String>{};
   final List<_WebChatMessage> _messages = <_WebChatMessage>[
     _WebChatMessage(
       fromUser: false,
-      text: '\u0417\u0434\u0440\u0430\u0432\u0441\u0442\u0432\u0443\u0439\u0442\u0435, \u044f Mila. \u0413\u043e\u0432\u043e\u0440\u0438\u0442\u0435 \u0438\u043b\u0438 \u043d\u0430\u043f\u0438\u0448\u0438\u0442\u0435 \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0435, \u0447\u0442\u043e\u0431\u044b \u043d\u0430\u0447\u0430\u0442\u044c.',
+      text:
+          '\u0417\u0434\u0440\u0430\u0432\u0441\u0442\u0432\u0443\u0439\u0442\u0435, \u044f Mila. \u0413\u043e\u0432\u043e\u0440\u0438\u0442\u0435 \u0438\u043b\u0438 \u043d\u0430\u043f\u0438\u0448\u0438\u0442\u0435 \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0435, \u0447\u0442\u043e\u0431\u044b \u043d\u0430\u0447\u0430\u0442\u044c.',
     ),
   ];
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      _syncChatHandlerRegistration();
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant _WebLiveScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _syncChatHandlerRegistration();
+  }
+
+  @override
   void dispose() {
+    _detachChatHandler();
     _composer.dispose();
     _composerFocus.dispose();
     _messageScroll.dispose();
     super.dispose();
+  }
+
+  void _syncChatHandlerRegistration() {
+    final room = widget.appState.liveKitRoom;
+    if (!widget.appState.isConnected || room == null) {
+      _detachChatHandler();
+      return;
+    }
+
+    if (identical(_chatRoom, room)) {
+      return;
+    }
+
+    _detachChatHandler();
+    _chatRoom = room;
+    room.registerTextStreamHandler(_chatTopic, _onChatStream);
+  }
+
+  void _detachChatHandler() {
+    final room = _chatRoom;
+    if (room != null) {
+      room.unregisterTextStreamHandler(_chatTopic);
+    }
+    _chatRoom = null;
+  }
+
+  Future<void> _onChatStream(
+    TextStreamReader reader,
+    String participantIdentity,
+  ) async {
+    try {
+      final streamId = reader.info?.id ?? '';
+      if (streamId.isNotEmpty && !_seenIncomingStreamIds.add(streamId)) {
+        return;
+      }
+
+      final text = (await reader.readAll()).trim();
+      if (!mounted || text.isEmpty) {
+        return;
+      }
+
+      // Ignore local echo; only render agent/remote chat streams.
+      if (participantIdentity == widget.appState.participantIdentity) {
+        return;
+      }
+
+      setState(() {
+        _messages.add(_WebChatMessage(fromUser: false, text: text));
+      });
+      _queueScrollToBottom();
+    } catch (_) {
+      // Ignore malformed or closed streams.
+    }
   }
 
   Future<void> _handleConnectTap() async {
@@ -178,7 +255,8 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
         _messages.add(
           const _WebChatMessage(
             fromUser: false,
-            text: '\u0421\u043d\u0430\u0447\u0430\u043b\u0430 \u043d\u0430\u0436\u043c\u0438\u0442\u0435 \u0421\u0442\u0430\u0440\u0442 \u0438 \u043f\u043e\u0434\u043a\u043b\u044e\u0447\u0438\u0442\u0435 Mila.',
+            text:
+                '\u0421\u043d\u0430\u0447\u0430\u043b\u0430 \u043d\u0430\u0436\u043c\u0438\u0442\u0435 \u0421\u0442\u0430\u0440\u0442 \u0438 \u043f\u043e\u0434\u043a\u043b\u044e\u0447\u0438\u0442\u0435 Mila.',
           ),
         );
       });
@@ -202,7 +280,8 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
         _messages.add(
           _WebChatMessage(
             fromUser: false,
-            text: '\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u043e\u0442\u043f\u0440\u0430\u0432\u0438\u0442\u044c: $error',
+            text:
+                '\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u043e\u0442\u043f\u0440\u0430\u0432\u0438\u0442\u044c: $error',
           ),
         );
       });
@@ -226,13 +305,15 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
       _messages.add(
         _WebChatMessage(
           fromUser: true,
-          text: '[$prefix] \u0434\u043e\u0431\u0430\u0432\u043b\u0435\u043d\u043e',
+          text:
+              '[$prefix] \u0434\u043e\u0431\u0430\u0432\u043b\u0435\u043d\u043e',
         ),
       );
       _messages.add(
         const _WebChatMessage(
           fromUser: false,
-          text: '\u0412\u043b\u043e\u0436\u0435\u043d\u0438\u0435 \u043e\u0442\u043c\u0435\u0447\u0435\u043d\u043e. \u041e\u0442\u043f\u0440\u0430\u0432\u044c\u0442\u0435 \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0435 \u0441 \u043e\u043f\u0438\u0441\u0430\u043d\u0438\u0435\u043c \u0444\u0430\u0439\u043b\u0430.',
+          text:
+              '\u0412\u043b\u043e\u0436\u0435\u043d\u0438\u0435 \u043e\u0442\u043c\u0435\u0447\u0435\u043d\u043e. \u041e\u0442\u043f\u0440\u0430\u0432\u044c\u0442\u0435 \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0435 \u0441 \u043e\u043f\u0438\u0441\u0430\u043d\u0438\u0435\u043c \u0444\u0430\u0439\u043b\u0430.',
         ),
       );
     });
@@ -250,12 +331,17 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
             children: <Widget>[
               ListTile(
                 leading: const Icon(Icons.image_outlined),
-                title: const Text('\u0414\u043e\u0431\u0430\u0432\u0438\u0442\u044c \u0438\u0437\u043e\u0431\u0440\u0430\u0436\u0435\u043d\u0438\u0435'),
-                onTap: () => Navigator.of(context).pop(_WebAttachmentKind.image),
+                title: const Text(
+                  '\u0414\u043e\u0431\u0430\u0432\u0438\u0442\u044c \u0438\u0437\u043e\u0431\u0440\u0430\u0436\u0435\u043d\u0438\u0435',
+                ),
+                onTap: () =>
+                    Navigator.of(context).pop(_WebAttachmentKind.image),
               ),
               ListTile(
                 leading: const Icon(Icons.attach_file_outlined),
-                title: const Text('\u0414\u043e\u0431\u0430\u0432\u0438\u0442\u044c \u0444\u0430\u0439\u043b'),
+                title: const Text(
+                  '\u0414\u043e\u0431\u0430\u0432\u0438\u0442\u044c \u0444\u0430\u0439\u043b',
+                ),
                 onTap: () => Navigator.of(context).pop(_WebAttachmentKind.file),
               ),
             ],
@@ -271,11 +357,16 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
     await _pickAttachment(choice);
   }
 
-  Color _bgColor() => _darkMode ? const Color(0xFF110E07) : const Color(0xFFFAF3E8);
-  Color _textColor() => _darkMode ? const Color(0xFFF0E4CC) : const Color(0xFF1E1108);
-  Color _mutedColor() => _darkMode ? const Color(0xFFC4A070) : const Color(0xFF7A5535);
-  Color _accent() => _darkMode ? const Color(0xFFC48E48) : const Color(0xFFB5712A);
-  Color _accent2() => _darkMode ? const Color(0xFFD4A870) : const Color(0xFFD4955A);
+  Color _bgColor() =>
+      _darkMode ? const Color(0xFF110E07) : const Color(0xFFFAF3E8);
+  Color _textColor() =>
+      _darkMode ? const Color(0xFFF0E4CC) : const Color(0xFF1E1108);
+  Color _mutedColor() =>
+      _darkMode ? const Color(0xFFC4A070) : const Color(0xFF7A5535);
+  Color _accent() =>
+      _darkMode ? const Color(0xFFC48E48) : const Color(0xFFB5712A);
+  Color _accent2() =>
+      _darkMode ? const Color(0xFFD4A870) : const Color(0xFFD4955A);
   Color _surface() => _darkMode
       ? const Color(0xFF1C1408).withValues(alpha: 0.86)
       : Colors.white.withValues(alpha: 0.82);
@@ -361,7 +452,10 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
             ),
             Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 24,
+                ),
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 560),
                   child: Column(
@@ -405,7 +499,9 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
                           ),
                           const SizedBox(width: 8),
                           _WebIconButton(
-                            icon: _darkMode ? Icons.wb_sunny_outlined : Icons.dark_mode_outlined,
+                            icon: _darkMode
+                                ? Icons.wb_sunny_outlined
+                                : Icons.dark_mode_outlined,
                             onPressed: () {
                               setState(() {
                                 _darkMode = !_darkMode;
@@ -422,7 +518,10 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
                       ),
                       const SizedBox(height: 14),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
                         decoration: BoxDecoration(
                           color: surface,
                           borderRadius: BorderRadius.circular(12),
@@ -458,9 +557,13 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(12),
-                            color: const Color(0xFFE74C3C).withValues(alpha: 0.16),
+                            color: const Color(
+                              0xFFE74C3C,
+                            ).withValues(alpha: 0.16),
                             border: Border.all(
-                              color: const Color(0xFFE74C3C).withValues(alpha: 0.34),
+                              color: const Color(
+                                0xFFE74C3C,
+                              ).withValues(alpha: 0.34),
                             ),
                           ),
                           child: Text(
@@ -532,16 +635,18 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
                               height: 224,
                               child: ListView.builder(
                                 controller: _messageScroll,
-                                padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+                                padding: const EdgeInsets.fromLTRB(
+                                  14,
+                                  14,
+                                  14,
+                                  10,
+                                ),
                                 itemCount: _messages.length,
                                 itemBuilder: (context, index) {
                                   final message = _messages[index];
                                   final bubbleColor = message.fromUser
                                       ? LinearGradient(
-                                          colors: <Color>[
-                                            _accent2(),
-                                            accent,
-                                          ],
+                                          colors: <Color>[_accent2(), accent],
                                         )
                                       : null;
 
@@ -555,12 +660,16 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
                                         horizontal: 12,
                                         vertical: 9,
                                       ),
-                                      constraints: const BoxConstraints(maxWidth: 410),
+                                      constraints: const BoxConstraints(
+                                        maxWidth: 410,
+                                      ),
                                       decoration: BoxDecoration(
                                         gradient: bubbleColor,
                                         color: bubbleColor == null
                                             ? (_darkMode
-                                                  ? Colors.white.withValues(alpha: 0.05)
+                                                  ? Colors.white.withValues(
+                                                      alpha: 0.05,
+                                                    )
                                                   : Colors.white)
                                             : null,
                                         borderRadius: BorderRadius.circular(12),
@@ -585,7 +694,12 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
                             ),
                             Container(height: 1, color: border),
                             Padding(
-                              padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
+                              padding: const EdgeInsets.fromLTRB(
+                                10,
+                                10,
+                                10,
+                                10,
+                              ),
                               child: Row(
                                 children: <Widget>[
                                   _WebInputIconButton(
@@ -612,17 +726,19 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
                                         fontWeight: FontWeight.w500,
                                       ),
                                       decoration: InputDecoration(
-                                        hintText: '\u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0435...',
+                                        hintText:
+                                            '\u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0435...',
                                         hintStyle: const TextStyle(
                                           color: Color(0xFF9A805F),
                                           fontSize: 14,
                                         ),
                                         filled: true,
                                         fillColor: const Color(0xFFF7F6F4),
-                                        contentPadding: const EdgeInsets.symmetric(
-                                          horizontal: 16,
-                                          vertical: 12,
-                                        ),
+                                        contentPadding:
+                                            const EdgeInsets.symmetric(
+                                              horizontal: 16,
+                                              vertical: 12,
+                                            ),
                                         border: InputBorder.none,
                                         isDense: true,
                                       ),
@@ -646,7 +762,9 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
                                           ? accent.withValues(alpha: 0.34)
                                           : accent,
                                       foregroundColor: const Color(0xFFFFF8EE),
-                                      disabledForegroundColor: const Color(0xFFFFF8EE),
+                                      disabledForegroundColor: const Color(
+                                        0xFFFFF8EE,
+                                      ),
                                       fixedSize: const Size(34, 34),
                                     ),
                                     icon: _isSendingText
@@ -655,9 +773,10 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
                                             height: 14,
                                             child: CircularProgressIndicator(
                                               strokeWidth: 2,
-                                              valueColor: AlwaysStoppedAnimation<Color>(
-                                                Color(0xFFFFF8EE),
-                                              ),
+                                              valueColor:
+                                                  AlwaysStoppedAnimation<Color>(
+                                                    Color(0xFFFFF8EE),
+                                                  ),
                                             ),
                                           )
                                         : const Icon(
@@ -797,7 +916,9 @@ class _WebVoiceOrbState extends State<_WebVoiceOrb> {
               ),
               boxShadow: <BoxShadow>[
                 BoxShadow(
-                  color: widget.accent.withValues(alpha: widget.active ? 0.44 : 0.18),
+                  color: widget.accent.withValues(
+                    alpha: widget.active ? 0.44 : 0.18,
+                  ),
                   blurRadius: widget.active ? 36 : 20,
                   spreadRadius: widget.active ? 2 : 0,
                 ),
@@ -813,7 +934,7 @@ class _WebVoiceOrbState extends State<_WebVoiceOrb> {
                   children: List<Widget>.generate(bars.length, (index) {
                     final factor = widget.active
                         ? (bars[index] + 0.11 * math.sin(_phase + index * 0.75))
-                            .clamp(0.24, 0.90)
+                              .clamp(0.24, 0.90)
                         : bars[index];
                     return Container(
                       width: index == 1 || index == 3 ? 8 : 6,
@@ -853,7 +974,9 @@ class _WebIconButton extends StatelessWidget {
         backgroundColor: active
             ? const Color(0xFFC48E48)
             : const Color(0xFFC48E48).withValues(alpha: 0.12),
-        foregroundColor: active ? const Color(0xFFFFF8EE) : const Color(0xFFC48E48),
+        foregroundColor: active
+            ? const Color(0xFFFFF8EE)
+            : const Color(0xFFC48E48),
         side: BorderSide(
           color: active
               ? const Color(0xFFC48E48)
@@ -885,7 +1008,9 @@ class _WebPowerButton extends StatelessWidget {
         backgroundColor: active
             ? const Color(0xFFC48E48)
             : const Color(0xFFC48E48).withValues(alpha: 0.12),
-        foregroundColor: active ? const Color(0xFFFFF8EE) : const Color(0xFFC48E48),
+        foregroundColor: active
+            ? const Color(0xFFFFF8EE)
+            : const Color(0xFFC48E48),
         side: BorderSide(
           color: active
               ? const Color(0xFFC48E48)
@@ -899,28 +1024,23 @@ class _WebPowerButton extends StatelessWidget {
               height: 16,
               child: CircularProgressIndicator(
                 strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  Color(0xFFFFF8EE),
-                ),
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFFF8EE)),
               ),
             )
           : Icon(
               Icons.power_settings_new,
               size: 18,
-              color: active
-                  ? const Color(0xFFFFF8EE)
-                  : const Color(0xFFC48E48),
+              color: active ? const Color(0xFFFFF8EE) : const Color(0xFFC48E48),
             ),
-      tooltip: active ? '\u041e\u0442\u043a\u043b\u044e\u0447\u0438\u0442\u044c\u0441\u044f' : '\u041f\u043e\u0434\u043a\u043b\u044e\u0447\u0438\u0442\u044c\u0441\u044f',
+      tooltip: active
+          ? '\u041e\u0442\u043a\u043b\u044e\u0447\u0438\u0442\u044c\u0441\u044f'
+          : '\u041f\u043e\u0434\u043a\u043b\u044e\u0447\u0438\u0442\u044c\u0441\u044f',
     );
   }
 }
 
 class _WebInputIconButton extends StatelessWidget {
-  const _WebInputIconButton({
-    required this.icon,
-    required this.onTap,
-  });
+  const _WebInputIconButton({required this.icon, required this.onTap});
 
   final IconData icon;
   final Future<void> Function() onTap;
@@ -932,9 +1052,7 @@ class _WebInputIconButton extends StatelessWidget {
       style: IconButton.styleFrom(
         backgroundColor: Colors.transparent,
         foregroundColor: const Color(0xFFB5712A),
-        side: const BorderSide(
-          color: Color(0x33B5712A),
-        ),
+        side: const BorderSide(color: Color(0x33B5712A)),
         fixedSize: const Size(34, 34),
       ),
       icon: Icon(icon, size: 16),
@@ -1098,8 +1216,8 @@ class _ConnectScreen extends StatelessWidget {
                                     onPressed: appState.isConnecting
                                         ? null
                                         : (appState.isConnected
-                                            ? onDisconnect
-                                            : onConnect),
+                                              ? onDisconnect
+                                              : onConnect),
                                     child: Row(
                                       mainAxisAlignment:
                                           MainAxisAlignment.center,
@@ -1122,8 +1240,8 @@ class _ConnectScreen extends StatelessWidget {
                                           appState.isConnecting
                                               ? 'CONNECTING'
                                               : (appState.isConnected
-                                                  ? 'END CALL'
-                                                  : 'TALK TO MILA'),
+                                                    ? 'END CALL'
+                                                    : 'TALK TO MILA'),
                                         ),
                                       ],
                                     ),
@@ -1409,22 +1527,23 @@ class _AssistantStage extends StatelessWidget {
     final theme = Theme.of(context);
     final agentReady = appState.remoteParticipantNames.isNotEmpty;
     final disconnected =
-        appState.status == AppConnectionStatus.disconnected && !appState.isConnecting;
+        appState.status == AppConnectionStatus.disconnected &&
+        !appState.isConnecting;
     final connecting = appState.status == AppConnectionStatus.connecting;
 
     final headline = disconnected
         ? 'Tap START to connect to MILA.'
         : connecting
-            ? 'Connecting to Mila...'
-            : (agentReady
-                ? 'Mila is ready to listen.'
-                : 'Waiting for Mila to join the room.');
+        ? 'Connecting to Mila...'
+        : (agentReady
+              ? 'Mila is ready to listen.'
+              : 'Waiting for Mila to join the room.');
 
     final body = disconnected
         ? 'Live voice mode starts after the room connects. Staff directory stays available on this screen.'
         : (agentReady
-            ? 'LiveKit is connected and the employee directory stays available while you talk.'
-            : 'Assistant audio will play through LiveKit as soon as the agent session becomes active.');
+              ? 'LiveKit is connected and the employee directory stays available while you talk.'
+              : 'Assistant audio will play through LiveKit as soon as the agent session becomes active.');
 
     return DecoratedBox(
       decoration: BoxDecoration(

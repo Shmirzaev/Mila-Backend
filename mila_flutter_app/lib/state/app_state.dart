@@ -65,6 +65,8 @@ class AppState extends ChangeNotifier {
     return track is LocalVideoTrack ? track : null;
   }
 
+  Room? get liveKitRoom => _liveKitService.room;
+
   bool get canDisconnect => _liveKitService.room != null || isConnecting;
   List<String> get remoteParticipantNames =>
       List<String>.unmodifiable(_remoteParticipantNames);

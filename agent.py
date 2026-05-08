@@ -70,10 +70,14 @@ MILA_TEXT_MODEL = (
 )
 MILA_TEXT_TEMPERATURE = _env_float("MILA_TEXT_TEMPERATURE", 0.5)
 MILA_TEXT_MAX_OUTPUT_TOKENS = env_int("MILA_TEXT_MAX_OUTPUT_TOKENS", 700)
+MILA_TEXT_TTS_MODEL = os.getenv("MILA_TEXT_TTS_MODEL", "").strip()
 MILA_STARTUP_MEMORY_LIMIT = env_int("MILA_STARTUP_MEMORY_LIMIT", 8)
 MILA_STARTUP_MEMORY_TIMEOUT_SECONDS = _env_float(
     "MILA_STARTUP_MEMORY_TIMEOUT_SECONDS",
     1.5,
+)
+MILA_TEXT_REPLY_TOPIC = (
+    os.getenv("MILA_TEXT_REPLY_TOPIC", "lk.chat").strip() or "lk.chat"
 )
 MILA_AEC_WARMUP_SECONDS = _env_float("MILA_AEC_WARMUP_SECONDS", 1.0)
 MILA_MEMORY_SUMMARY_MODEL = (
@@ -1067,6 +1071,12 @@ async def entrypoint(ctx: JobContext):
         if not user_text:
             return
 
+        sender_identity = getattr(ev.participant, "identity", "unknown")
+        print(
+            "INFO: text turn received from "
+            f"{sender_identity}; handling with {MILA_TEXT_MODEL}"
+        )
+
         async with text_turn_lock:
             history_snapshot = sess.history.copy()
             try:
@@ -1083,17 +1093,38 @@ async def entrypoint(ctx: JobContext):
                     "Попробуйте еще раз."
                 )
 
-            await sess.interrupt()
-            sess.say(reply_text, add_to_chat_ctx=True)
+            # Publish text replies to chat so web/desktop UIs can render them.
+            try:
+                await ctx.room.local_participant.send_text(
+                    reply_text,
+                    topic=MILA_TEXT_REPLY_TOPIC,
+                )
+            except Exception as error:
+                print(f"WARNING: failed to publish text reply stream: {error}")
 
-    session = AgentSession(
-        llm=google.realtime.RealtimeModel(
+            # Realtime Gemini 3.1 does not support say(); keep this non-fatal.
+            try:
+                await sess.interrupt()
+                sess.say(reply_text, add_to_chat_ctx=True)
+            except Exception as error:
+                print(f"WARNING: could not speak text reply: {error}")
+
+    session_kwargs: dict = {
+        "llm": google.realtime.RealtimeModel(
             model=MILA_REALTIME_MODEL,
             voice="Achernar",
             temperature=0.8,
         ),
-        aec_warmup_duration=MILA_AEC_WARMUP_SECONDS,
-    )
+        "aec_warmup_duration": MILA_AEC_WARMUP_SECONDS,
+    }
+    if MILA_TEXT_TTS_MODEL:
+        try:
+            session_kwargs["tts"] = google.TTS(model_name=MILA_TEXT_TTS_MODEL)
+            print(f"INFO: text reply TTS enabled: {MILA_TEXT_TTS_MODEL}")
+        except Exception as error:
+            print(f"WARNING: failed to initialize text reply TTS: {error}")
+
+    session = AgentSession(**session_kwargs)
     _install_session_memory_autosave(session, ctx)
 
     await session.start(
