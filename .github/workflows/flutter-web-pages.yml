@@ -44,7 +44,11 @@ jobs:
       - name: Build web
         run: |
           REPO_NAME="${GITHUB_REPOSITORY#*/}"
-          flutter build web --release --base-href "/${REPO_NAME}/"
+          flutter build web \
+            --release \
+            --base-href "/${REPO_NAME}/" \
+            --dart-define=MILA_DEFAULT_BACKEND_URL="https://mila-web.onrender.com" \
+            --dart-define=MILA_AUTO_CONNECT_ON_LAUNCH=true
 
       - name: Configure Pages
         if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
