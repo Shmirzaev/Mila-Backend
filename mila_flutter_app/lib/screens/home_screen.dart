@@ -43,6 +43,7 @@ class _HomeScreenState extends State<HomeScreen> {
         onDisconnect: context.read<AppState>().disconnect,
         onToggleMicrophone: context.read<AppState>().toggleMicrophone,
         onToggleCamera: context.read<AppState>().toggleCamera,
+        onSwitchCameraFacing: context.read<AppState>().switchCameraFacing,
         onOpenSettings: () => _openSettings(context),
       );
     }
@@ -107,6 +108,7 @@ class _WebLiveScreen extends StatefulWidget {
     required this.onDisconnect,
     required this.onToggleMicrophone,
     required this.onToggleCamera,
+    required this.onSwitchCameraFacing,
     required this.onOpenSettings,
   });
 
@@ -115,6 +117,7 @@ class _WebLiveScreen extends StatefulWidget {
   final Future<void> Function() onDisconnect;
   final Future<void> Function() onToggleMicrophone;
   final Future<void> Function() onToggleCamera;
+  final Future<void> Function() onSwitchCameraFacing;
   final VoidCallback onOpenSettings;
 
   @override
@@ -422,6 +425,11 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
     final border = _border();
     final connected = widget.appState.isConnected;
     final connecting = widget.appState.isConnecting;
+    final localCameraTrack = widget.appState.localVideoTrack;
+    final showCameraPreview =
+        connected &&
+        widget.appState.isCameraEnabled &&
+        localCameraTrack != null;
     final micLabel = widget.appState.isMicrophoneEnabled
         ? '\u041c\u0418\u041a\u0420\u041e\u0424\u041e\u041d \u0412\u041a\u041b'
         : '\u041c\u0418\u041a\u0420\u041e\u0424\u041e\u041d \u0412\u042b\u041a\u041b';
@@ -496,6 +504,14 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
                                 : Icons.videocam_off,
                             active: widget.appState.isCameraEnabled,
                             onPressed: widget.onToggleCamera,
+                          ),
+                          const SizedBox(width: 8),
+                          _WebIconButton(
+                            icon: Icons.cameraswitch_outlined,
+                            active: widget.appState.isUsingBackCamera,
+                            onPressed: () {
+                              unawaited(widget.onSwitchCameraFacing());
+                            },
                           ),
                           const SizedBox(width: 8),
                           _WebIconButton(
@@ -587,6 +603,12 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
                             active: connected || connecting,
                             accent: accent,
                             accentSoft: _accent2(),
+                            cameraPreview: showCameraPreview
+                                ? VideoTrackRenderer(
+                                    localCameraTrack,
+                                    fit: VideoViewFit.cover,
+                                  )
+                                : null,
                           ),
                         ),
                       ),
@@ -849,11 +871,13 @@ class _WebVoiceOrb extends StatefulWidget {
     required this.active,
     required this.accent,
     required this.accentSoft,
+    this.cameraPreview,
   });
 
   final bool active;
   final Color accent;
   final Color accentSoft;
+  final Widget? cameraPreview;
 
   @override
   State<_WebVoiceOrb> createState() => _WebVoiceOrbState();
@@ -887,6 +911,7 @@ class _WebVoiceOrbState extends State<_WebVoiceOrb> {
   Widget build(BuildContext context) {
     final rippleOpacity = widget.active ? 0.34 : 0.08;
     final bars = <double>[0.36, 0.82, 0.52, 0.72, 0.40];
+    final hasCameraPreview = widget.cameraPreview != null;
 
     return SizedBox(
       width: 164,
@@ -911,9 +936,12 @@ class _WebVoiceOrbState extends State<_WebVoiceOrb> {
             height: widget.active ? 112 : 104,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              gradient: RadialGradient(
-                colors: <Color>[widget.accentSoft, widget.accent],
-              ),
+              gradient: hasCameraPreview
+                  ? null
+                  : RadialGradient(
+                      colors: <Color>[widget.accentSoft, widget.accent],
+                    ),
+              color: hasCameraPreview ? const Color(0xFF231607) : null,
               boxShadow: <BoxShadow>[
                 BoxShadow(
                   color: widget.accent.withValues(
@@ -924,30 +952,52 @@ class _WebVoiceOrbState extends State<_WebVoiceOrb> {
                 ),
               ],
             ),
-            child: Center(
-              child: SizedBox(
-                width: 56,
-                height: 42,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: List<Widget>.generate(bars.length, (index) {
-                    final factor = widget.active
-                        ? (bars[index] + 0.11 * math.sin(_phase + index * 0.75))
-                              .clamp(0.24, 0.90)
-                        : bars[index];
-                    return Container(
-                      width: index == 1 || index == 3 ? 8 : 6,
-                      height: 42 * factor,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFF8EE),
-                        borderRadius: BorderRadius.circular(999),
+            child: hasCameraPreview
+                ? ClipOval(
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: <Widget>[
+                        widget.cameraPreview!,
+                        DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: <Color>[
+                                Colors.black.withValues(alpha: 0.06),
+                                Colors.black.withValues(alpha: 0.22),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : Center(
+                    child: SizedBox(
+                      width: 56,
+                      height: 42,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: List<Widget>.generate(bars.length, (index) {
+                          final factor = widget.active
+                              ? (bars[index] +
+                                        0.11 * math.sin(_phase + index * 0.75))
+                                    .clamp(0.24, 0.90)
+                              : bars[index];
+                          return Container(
+                            width: index == 1 || index == 3 ? 8 : 6,
+                            height: 42 * factor,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFF8EE),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                          );
+                        }),
                       ),
-                    );
-                  }),
-                ),
-              ),
-            ),
+                    ),
+                  ),
           ),
         ],
       ),

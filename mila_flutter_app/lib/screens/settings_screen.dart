@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../app_config.dart';
 import '../main.dart';
 import '../state/app_state.dart';
 
@@ -35,6 +36,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final theme = Theme.of(context);
     final palette = theme.extension<MilaPalette>()!;
     final appState = context.watch<AppState>();
+    final renderBackendUrl = AppConfig.defaultBackendBaseUrl;
 
     return Scaffold(
       backgroundColor: palette.lightBackground,
@@ -105,6 +107,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             runSpacing: 10,
                             children: <Widget>[
                               _QuickInsertPill(
+                                label: 'Render backend',
+                                value: renderBackendUrl,
+                                onTap: _fill,
+                              ),
+                              _QuickInsertPill(
                                 label: 'Web local',
                                 value: 'http://127.0.0.1:8000',
                                 onTap: _fill,
@@ -121,7 +128,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               ),
                               _QuickInsertPill(
                                 label: 'Production',
-                                value: 'https://my-domain.com',
+                                value: renderBackendUrl,
                                 onTap: _fill,
                               ),
                             ],
@@ -145,7 +152,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         title: 'Platform routing',
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
-                          children: const <Widget>[
+                          children: <Widget>[
+                            _SettingsLine(
+                              title: 'Render backend (recommended)',
+                              value: renderBackendUrl,
+                            ),
                             _SettingsLine(
                               title: 'Web on same computer',
                               value: 'http://127.0.0.1:8000',
@@ -160,7 +171,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ),
                             _SettingsLine(
                               title: 'Production',
-                              value: 'https://my-domain.com',
+                              value: renderBackendUrl,
                             ),
                           ],
                         ),

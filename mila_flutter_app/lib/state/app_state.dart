@@ -508,21 +508,17 @@ class AppState extends ChangeNotifier {
   }
 
   String _resolveInitialBackendBaseUrl(String? storedUrl) {
-    final stored = storedUrl?.trim() ?? '';
-    if (stored.isNotEmpty) {
-      return stored;
-    }
-
     final bundled = AppConfig.defaultBackendBaseUrl.trim();
-    if (bundled.isEmpty) {
-      return '';
+    if (bundled.isNotEmpty) {
+      try {
+        return _normalizeBackendBaseUrl(bundled);
+      } on FormatException {
+        // Fall back to stored value if the bundled default is malformed.
+      }
     }
 
-    try {
-      return _normalizeBackendBaseUrl(bundled);
-    } on FormatException {
-      return '';
-    }
+    final stored = storedUrl?.trim() ?? '';
+    return stored;
   }
 
   String _normalizeBackendBaseUrl(String value) {
