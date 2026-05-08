@@ -36,7 +36,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
     final palette = Theme.of(context).extension<MilaPalette>()!;
-    final inCall = !kIsWeb && (appState.isConnected || appState.isConnecting);
+    // Keep web in the live-stage UI to match the custom MILA web concept.
+    final inCall = kIsWeb || appState.isConnected || appState.isConnecting;
 
     return Scaffold(
       backgroundColor: inCall
@@ -52,6 +53,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   key: const ValueKey<String>('call-screen'),
                   appState: appState,
                   showEmployeePanel: _showEmployeePanel,
+                  onConnect: context.read<AppState>().connect,
                   onDisconnect: context.read<AppState>().disconnect,
                   onOpenSettings: () => _openSettings(context),
                   onRefreshEmployees: context
@@ -287,6 +289,7 @@ class _CallScreen extends StatelessWidget {
   const _CallScreen({
     required this.appState,
     required this.showEmployeePanel,
+    required this.onConnect,
     required this.onDisconnect,
     required this.onOpenSettings,
     required this.onRefreshEmployees,
@@ -298,6 +301,7 @@ class _CallScreen extends StatelessWidget {
 
   final AppState appState;
   final bool showEmployeePanel;
+  final Future<void> Function() onConnect;
   final Future<void> Function() onDisconnect;
   final VoidCallback onOpenSettings;
   final Future<void> Function() onRefreshEmployees;
@@ -322,6 +326,8 @@ class _CallScreen extends StatelessWidget {
                 children: <Widget>[
                   _CallHeader(
                     appState: appState,
+                    onConnect: onConnect,
+                    onDisconnect: onDisconnect,
                     onOpenSettings: onOpenSettings,
                   ),
                   const SizedBox(height: 18),
@@ -398,9 +404,16 @@ class _CallScreen extends StatelessWidget {
 }
 
 class _CallHeader extends StatelessWidget {
-  const _CallHeader({required this.appState, required this.onOpenSettings});
+  const _CallHeader({
+    required this.appState,
+    required this.onConnect,
+    required this.onDisconnect,
+    required this.onOpenSettings,
+  });
 
   final AppState appState;
+  final Future<void> Function() onConnect;
+  final Future<void> Function() onDisconnect;
   final VoidCallback onOpenSettings;
 
   @override
@@ -409,7 +422,32 @@ class _CallHeader extends StatelessWidget {
 
     return Row(
       children: <Widget>[
-        const _ToneChip(label: 'MILA LIVE', dark: true),
+        if (kIsWeb)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                'PERSONAL AI · MILANA PREMIUM',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: palette.blue500.withValues(alpha: 0.9),
+                  fontSize: 10,
+                  letterSpacing: 1.8,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'MILA',
+                style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                  color: Colors.white,
+                  fontSize: 34,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          )
+        else
+          const _ToneChip(label: 'MILA LIVE', dark: true),
         const SizedBox(width: 12),
         _StatusChip(
           label: appState.statusLabel.toUpperCase(),
@@ -426,6 +464,34 @@ class _CallHeader extends StatelessWidget {
           subtle: true,
         ),
         const Spacer(),
+        if (kIsWeb) ...<Widget>[
+          TextButton(
+            onPressed: appState.isConnecting
+                ? null
+                : (appState.isConnected ? onDisconnect : onConnect),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.white,
+              backgroundColor: appState.isConnected
+                  ? Colors.redAccent.withValues(alpha: 0.2)
+                  : palette.blue500.withValues(alpha: 0.24),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: Text(
+              appState.isConnecting
+                  ? 'CONNECTING'
+                  : (appState.isConnected ? 'END' : 'START'),
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.3,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+        ],
         IconButton(
           onPressed: onOpenSettings,
           style: IconButton.styleFrom(
@@ -449,6 +515,23 @@ class _AssistantStage extends StatelessWidget {
     final palette = Theme.of(context).extension<MilaPalette>()!;
     final theme = Theme.of(context);
     final agentReady = appState.remoteParticipantNames.isNotEmpty;
+    final disconnected =
+        appState.status == AppConnectionStatus.disconnected && !appState.isConnecting;
+    final connecting = appState.status == AppConnectionStatus.connecting;
+
+    final headline = disconnected
+        ? 'Tap START to connect to MILA.'
+        : connecting
+            ? 'Connecting to Mila...'
+            : (agentReady
+                ? 'Mila is ready to listen.'
+                : 'Waiting for Mila to join the room.');
+
+    final body = disconnected
+        ? 'Live voice mode starts after the room connects. Staff directory stays available on this screen.'
+        : (agentReady
+            ? 'LiveKit is connected and the employee directory stays available while you talk.'
+            : 'Assistant audio will play through LiveKit as soon as the agent session becomes active.');
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -513,9 +596,7 @@ class _AssistantStage extends StatelessWidget {
                 ),
                 const SizedBox(height: 28),
                 Text(
-                  agentReady
-                      ? 'Mila is ready to listen.'
-                      : 'Waiting for Mila to join the room.',
+                  headline,
                   textAlign: TextAlign.center,
                   style: theme.textTheme.displaySmall?.copyWith(
                     color: Colors.white,
@@ -524,9 +605,7 @@ class _AssistantStage extends StatelessWidget {
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  agentReady
-                      ? 'LiveKit is connected and the employee directory stays available while you talk.'
-                      : 'Assistant audio will play through LiveKit as soon as the agent session becomes active.',
+                  body,
                   textAlign: TextAlign.center,
                   style: theme.textTheme.bodyLarge?.copyWith(
                     color: Colors.white.withValues(alpha: 0.72),
