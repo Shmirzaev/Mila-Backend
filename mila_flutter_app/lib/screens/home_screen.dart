@@ -128,7 +128,7 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
   final List<_WebChatMessage> _messages = <_WebChatMessage>[
     _WebChatMessage(
       fromUser: false,
-      text: 'Р—РґСЂР°РІСЃС‚РІСѓР№С‚Рµ, СЏ Mila. Р“РѕРІРѕСЂРёС‚Рµ РёР»Рё РЅР°РїРёС€РёС‚Рµ СЃРѕРѕР±С‰РµРЅРёРµ, С‡С‚РѕР±С‹ РЅР°С‡Р°С‚СЊ.',
+      text: '\u0417\u0434\u0440\u0430\u0432\u0441\u0442\u0432\u0443\u0439\u0442\u0435, \u044f Mila. \u0413\u043e\u0432\u043e\u0440\u0438\u0442\u0435 \u0438\u043b\u0438 \u043d\u0430\u043f\u0438\u0448\u0438\u0442\u0435 \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0435, \u0447\u0442\u043e\u0431\u044b \u043d\u0430\u0447\u0430\u0442\u044c.',
     ),
   ];
 
@@ -178,7 +178,7 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
       _messages.add(
         const _WebChatMessage(
           fromUser: false,
-          text: 'Р“РѕР»РѕСЃРѕРІРѕР№ СЂРµР¶РёРј Р°РєС‚РёРІРµРЅ. РџСЂРѕРґРѕР»Р¶Р°Р№С‚Рµ РіРѕРІРѕСЂРёС‚СЊ СЃ Mila РІ РјРёРєСЂРѕС„РѕРЅ.',
+          text: '\u0413\u043e\u043b\u043e\u0441\u043e\u0432\u043e\u0439 \u0440\u0435\u0436\u0438\u043c \u0430\u043a\u0442\u0438\u0432\u0435\u043d. \u041f\u0440\u043e\u0434\u043e\u043b\u0436\u0430\u0439\u0442\u0435 \u0433\u043e\u0432\u043e\u0440\u0438\u0442\u044c \u0441 Mila \u0432 \u043c\u0438\u043a\u0440\u043e\u0444\u043e\u043d.',
         ),
       );
       _composer.clear();
@@ -188,14 +188,21 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
   }
 
   Future<void> _pickAttachment(_WebAttachmentKind kind) async {
-    final prefix = kind == _WebAttachmentKind.image ? 'РР·РѕР±СЂР°Р¶РµРЅРёРµ' : 'Р¤Р°Р№Р»';
+    final prefix = kind == _WebAttachmentKind.image
+        ? '\u0418\u0437\u043e\u0431\u0440\u0430\u0436\u0435\u043d\u0438\u0435'
+        : '\u0424\u0430\u0439\u043b';
 
     setState(() {
-      _messages.add(_WebChatMessage(fromUser: true, text: '[$prefix] РґРѕР±Р°РІР»РµРЅРѕ'));
+      _messages.add(
+        _WebChatMessage(
+          fromUser: true,
+          text: '[$prefix] \u0434\u043e\u0431\u0430\u0432\u043b\u0435\u043d\u043e',
+        ),
+      );
       _messages.add(
         const _WebChatMessage(
           fromUser: false,
-          text: 'Р’Р»РѕР¶РµРЅРёРµ РѕС‚РјРµС‡РµРЅРѕ. РћС‚РїСЂР°РІСЊС‚Рµ СЃРѕРѕР±С‰РµРЅРёРµ СЃ РѕРїРёСЃР°РЅРёРµРј С„Р°Р№Р»Р°.',
+          text: '\u0412\u043b\u043e\u0436\u0435\u043d\u0438\u0435 \u043e\u0442\u043c\u0435\u0447\u0435\u043d\u043e. \u041e\u0442\u043f\u0440\u0430\u0432\u044c\u0442\u0435 \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0435 \u0441 \u043e\u043f\u0438\u0441\u0430\u043d\u0438\u0435\u043c \u0444\u0430\u0439\u043b\u0430.',
         ),
       );
     });
@@ -213,12 +220,12 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
             children: <Widget>[
               ListTile(
                 leading: const Icon(Icons.image_outlined),
-                title: const Text('Р”РѕР±Р°РІРёС‚СЊ РёР·РѕР±СЂР°Р¶РµРЅРёРµ'),
+                title: const Text('\u0414\u043e\u0431\u0430\u0432\u0438\u0442\u044c \u0438\u0437\u043e\u0431\u0440\u0430\u0436\u0435\u043d\u0438\u0435'),
                 onTap: () => Navigator.of(context).pop(_WebAttachmentKind.image),
               ),
               ListTile(
                 leading: const Icon(Icons.attach_file_outlined),
-                title: const Text('Р”РѕР±Р°РІРёС‚СЊ С„Р°Р№Р»'),
+                title: const Text('\u0414\u043e\u0431\u0430\u0432\u0438\u0442\u044c \u0444\u0430\u0439\u043b'),
                 onTap: () => Navigator.of(context).pop(_WebAttachmentKind.file),
               ),
             ],
@@ -249,13 +256,13 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
   String _connectionLabel() {
     switch (widget.appState.status) {
       case AppConnectionStatus.connected:
-        return 'РџРѕРґРєР»СЋС‡РµРЅРѕ Рє MILA';
+        return '\u041f\u043e\u0434\u043a\u043b\u044e\u0447\u0435\u043d\u043e \u043a MILA';
       case AppConnectionStatus.connecting:
-        return 'РџРѕРґРєР»СЋС‡РµРЅРёРµ...';
+        return '\u041f\u043e\u0434\u043a\u043b\u044e\u0447\u0435\u043d\u0438\u0435...';
       case AppConnectionStatus.error:
-        return 'РћС€РёР±РєР° РїРѕРґРєР»СЋС‡РµРЅРёСЏ';
+        return '\u041e\u0448\u0438\u0431\u043a\u0430 \u043f\u043e\u0434\u043a\u043b\u044e\u0447\u0435\u043d\u0438\u044f';
       case AppConnectionStatus.disconnected:
-        return 'РћС‚РєР»СЋС‡РµРЅРѕ';
+        return '\u041e\u0442\u043a\u043b\u044e\u0447\u0435\u043d\u043e';
     }
   }
 
@@ -274,15 +281,15 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
 
   String _agentStateLabel() {
     if (widget.appState.isConnecting) {
-      return 'РџРѕРґРєР»СЋС‡РµРЅРёРµ Рє Mila...';
+      return '\u041f\u043e\u0434\u043a\u043b\u044e\u0447\u0435\u043d\u0438\u0435 \u043a Mila...';
     }
     if (widget.appState.remoteParticipantNames.isNotEmpty) {
-      return 'Mila СЃР»СѓС€Р°РµС‚.';
+      return 'Mila \u0441\u043b\u0443\u0448\u0430\u0435\u0442.';
     }
     if (widget.appState.isConnected) {
-      return 'РћР¶РёРґР°РЅРёРµ РїРѕРґРєР»СЋС‡РµРЅРёСЏ Mila Рє РєРѕРјРЅР°С‚Рµ.';
+      return '\u041e\u0436\u0438\u0434\u0430\u043d\u0438\u0435 \u043f\u043e\u0434\u043a\u043b\u044e\u0447\u0435\u043d\u0438\u044f Mila \u043a \u043a\u043e\u043c\u043d\u0430\u0442\u0435.';
     }
-    return 'РќР°Р¶РјРёС‚Рµ РЎС‚Р°СЂС‚ РґР»СЏ РїРѕРґРєР»СЋС‡РµРЅРёСЏ Рє Mila.';
+    return '\u041d\u0430\u0436\u043c\u0438\u0442\u0435 \u0421\u0442\u0430\u0440\u0442 \u0434\u043b\u044f \u043f\u043e\u0434\u043a\u043b\u044e\u0447\u0435\u043d\u0438\u044f \u043a Mila.';
   }
 
   @override
@@ -295,11 +302,11 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
     final connected = widget.appState.isConnected;
     final connecting = widget.appState.isConnecting;
     final micLabel = widget.appState.isMicrophoneEnabled
-        ? 'РњРРљР РћР¤РћРќ Р’РљР›'
-        : 'РњРРљР РћР¤РћРќ Р’Р«РљР›';
+        ? '\u041c\u0418\u041a\u0420\u041e\u0424\u041e\u041d \u0412\u041a\u041b'
+        : '\u041c\u0418\u041a\u0420\u041e\u0424\u041e\u041d \u0412\u042b\u041a\u041b';
     final staffLabel = widget.appState.hasEmployeeDirectory
-        ? '${widget.appState.employeeDirectory.length} РЎРћРўР РЈР”РќРРљРћР’'
-        : 'РЎРРќРҐР . РЁРўРђРўРђ';
+        ? '${widget.appState.employeeDirectory.length} \u0421\u041e\u0422\u0420\u0423\u0414\u041d\u0418\u041a\u041e\u0412'
+        : '\u0421\u0418\u041d\u0425\u0420. \u0428\u0422\u0410\u0422\u0410';
 
     return Scaffold(
       backgroundColor: _bgColor(),
@@ -338,7 +345,7 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: <Widget>[
                                 Text(
-                                  'РџР•Р РЎРћРќРђР›Р¬РќР«Р™ РР В· MILANA PREMIUM',
+                                  '\u041f\u0415\u0420\u0421\u041e\u041d\u0410\u041b\u042c\u041d\u042b\u0419 \u0418\u0418 - MILANA PREMIUM',
                                   style: TextStyle(
                                     color: accent,
                                     fontSize: 10,
@@ -573,7 +580,7 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
                                         fontWeight: FontWeight.w500,
                                       ),
                                       decoration: InputDecoration(
-                                        hintText: 'Введите сообщение...',
+                                        hintText: '\u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0435...',
                                         hintStyle: const TextStyle(
                                           color: Color(0xFF9A805F),
                                           fontSize: 14,
@@ -615,7 +622,7 @@ class _WebLiveScreenState extends State<_WebLiveScreen> {
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        'MILA В· Milana Premium В· Р Р°Р±РѕС‚Р°РµС‚ РЅР° LiveKit',
+                        'MILA - Milana Premium - \u0420\u0430\u0431\u043e\u0442\u0430\u0435\u0442 \u043d\u0430 LiveKit',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: muted.withValues(alpha: 0.8),
@@ -853,7 +860,7 @@ class _WebPowerButton extends StatelessWidget {
                   ? const Color(0xFFFFF8EE)
                   : const Color(0xFFC48E48),
             ),
-      tooltip: active ? 'РћС‚РєР»СЋС‡РёС‚СЊСЃСЏ' : 'РџРѕРґРєР»СЋС‡РёС‚СЊСЃСЏ',
+      tooltip: active ? '\u041e\u0442\u043a\u043b\u044e\u0447\u0438\u0442\u044c\u0441\u044f' : '\u041f\u043e\u0434\u043a\u043b\u044e\u0447\u0438\u0442\u044c\u0441\u044f',
     );
   }
 }
@@ -880,7 +887,7 @@ class _WebInputIconButton extends StatelessWidget {
         fixedSize: const Size(34, 34),
       ),
       icon: Icon(icon, size: 16),
-      tooltip: 'Р’Р»РѕР¶РµРЅРёРµ',
+      tooltip: '\u0412\u043b\u043e\u0436\u0435\u043d\u0438\u0435',
     );
   }
 }
