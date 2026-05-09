@@ -25,6 +25,7 @@ google-cloud-speech==2.38.0
 google-cloud-texttospeech==2.36.0
 google-genai==1.74.0
 googleapis-common-protos==1.74.0
+gdown==5.2.0
 grpcio==1.75.1
 grpcio-status==1.75.1
 h11==0.16.0
@@ -63,7 +64,6 @@ pyasn1_modules==0.4.2
 pycparser==3.0
 pydantic==2.13.3
 pydantic_core==2.46.3
-pypdf==5.9.0
 Pygments==2.20.0
 PyJWT==2.12.1
 python-multipart==0.0.20
