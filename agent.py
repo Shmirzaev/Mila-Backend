@@ -22,11 +22,6 @@ from product_sheet_service import (
     list_product_prices,
     search_product_prices,
 )
-from product_image_catalog_service import (
-    get_product_image_catalog_status as get_product_image_catalog_status_data,
-    list_product_image_catalog as list_product_image_catalog_data,
-    search_product_image_catalog as search_product_image_catalog_data,
-)
 
 from action_service import (
     init_action_pool,
@@ -206,15 +201,11 @@ If the target group is not configured, say that the Telegram target is missing.
 PRODUCT PRICE RULES
 
 You have access to a live Google Sheet with product and price information.
-You also have a Google Drive image folder catalog with product photos.
 
 For any question about products, model codes, sizes, or prices:
 - always call product sheet tools first;
-- if needed, call product image catalog tools for model/photo context;
-- answer using sheet and image catalog data only;
+- answer using sheet data only;
 - never invent prices;
-- when the user shows a dress photo, first identify likely model code from the image,
-  then verify with product sheet or image catalog tools before answering.
 - if no match is found, ask for a clearer model code or product name.
 
 LANGUAGE SWITCHING RULES
@@ -395,10 +386,8 @@ Do not treat database UUID as employee number.
 PRODUCT PRICE RULES
 
 Product and price data comes from the configured Google Sheet.
-Additional product/photo references come from the configured image catalog folder.
 For product price answers:
 - first use product sheet tools;
-- if needed, use image catalog tools to cross-check model/photo information;
 - use current sheet values as source of truth;
 - if there are multiple matches, show a short list and ask which model is needed.
 
@@ -793,48 +782,6 @@ For messages to all employees or departments, use group or broadcast tools, not 
             query=query,
             limit=limit,
             force_refresh=force_refresh,
-        )
-
-    @function_tool()
-    async def show_product_image_catalog_status(
-        self,
-        context: RunContext,
-        force_refresh: bool = False,
-    ) -> str:
-        """
-        Show image catalog status and total indexed image count.
-        """
-        return await get_product_image_catalog_status_data(force_refresh=force_refresh)
-
-    @function_tool()
-    async def show_product_image_catalog(
-        self,
-        context: RunContext,
-        limit: int = 30,
-        force_refresh: bool = False,
-    ) -> str:
-        """
-        List product image catalog items (with direct and preview URLs).
-        """
-        return await list_product_image_catalog_data(limit=limit, force_refresh=force_refresh)
-
-    @function_tool()
-    async def search_product_image_catalog(
-        self,
-        context: RunContext,
-        query: str,
-        limit: int = 30,
-        force_refresh: bool = False,
-        max_ocr_images: int = 12,
-    ) -> str:
-        """
-        Search product image catalog by model code, file name, path, or file ID.
-        """
-        return await search_product_image_catalog_data(
-            query=query,
-            limit=limit,
-            force_refresh=force_refresh,
-            max_ocr_images=max_ocr_images,
         )
 
 
