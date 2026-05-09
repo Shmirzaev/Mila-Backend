@@ -22,6 +22,10 @@ from product_sheet_service import (
     list_product_prices,
     search_product_prices,
 )
+from product_pdf_catalog_service import (
+    get_product_pdf_catalog_status as get_product_pdf_catalog_status_data,
+    search_product_pdf_catalog as search_product_pdf_catalog_data,
+)
 
 from action_service import (
     init_action_pool,
@@ -201,11 +205,15 @@ If the target group is not configured, say that the Telegram target is missing.
 PRODUCT PRICE RULES
 
 You have access to a live Google Sheet with product and price information.
+You also have a PDF product catalog with product photos, model codes, and prices.
 
 For any question about products, model codes, sizes, or prices:
 - always call product sheet tools first;
-- answer using sheet data only;
+- if needed, call PDF catalog tools for model/photo context;
+- answer using sheet and PDF data only;
 - never invent prices;
+- when the user shows a dress photo, first identify likely model code from the image,
+  then verify with product sheet or PDF catalog tools before answering.
 - if no match is found, ask for a clearer model code or product name.
 
 LANGUAGE SWITCHING RULES
@@ -386,8 +394,10 @@ Do not treat database UUID as employee number.
 PRODUCT PRICE RULES
 
 Product and price data comes from the configured Google Sheet.
+Additional product/photo references come from the configured PDF catalog files.
 For product price answers:
 - first use product sheet tools;
+- if needed, use PDF catalog tools to cross-check model/photo information;
 - use current sheet values as source of truth;
 - if there are multiple matches, show a short list and ask which model is needed.
 
@@ -779,6 +789,34 @@ For messages to all employees or departments, use group or broadcast tools, not 
         Search products and prices by model code, product name, category, size, or price.
         """
         return await search_product_prices(
+            query=query,
+            limit=limit,
+            force_refresh=force_refresh,
+        )
+
+    @function_tool()
+    async def show_product_pdf_catalog_status(
+        self,
+        context: RunContext,
+        force_refresh: bool = False,
+    ) -> str:
+        """
+        Show PDF catalog status and indexed line counts by source file.
+        """
+        return await get_product_pdf_catalog_status_data(force_refresh=force_refresh)
+
+    @function_tool()
+    async def search_product_pdf_catalog(
+        self,
+        context: RunContext,
+        query: str,
+        limit: int = 30,
+        force_refresh: bool = False,
+    ) -> str:
+        """
+        Search product model/photo/price information inside configured PDF catalogs.
+        """
+        return await search_product_pdf_catalog_data(
             query=query,
             limit=limit,
             force_refresh=force_refresh,
