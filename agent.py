@@ -17,6 +17,11 @@ from employee_service import (
     list_telegram_targets,
     get_telegram_target,
 )
+from product_sheet_service import (
+    get_product_sheet_status,
+    list_product_prices,
+    search_product_prices,
+)
 
 from action_service import (
     init_action_pool,
@@ -193,6 +198,16 @@ When the CEO asks to add an employee, collect:
 When the CEO asks to message a department, use Telegram targets, not memory.
 If the target group is not configured, say that the Telegram target is missing.
 
+PRODUCT PRICE RULES
+
+You have access to a live Google Sheet with product and price information.
+
+For any question about products, model codes, sizes, or prices:
+- always call product sheet tools first;
+- answer using sheet data only;
+- never invent prices;
+- if no match is found, ask for a clearer model code or product name.
+
 LANGUAGE SWITCHING RULES
 
 Default language: Russian.
@@ -367,6 +382,14 @@ If the CEO asks to add, edit, or delete an employee, respond:
 
 Use employee_no as the main human-readable employee number.
 Do not treat database UUID as employee number.
+
+PRODUCT PRICE RULES
+
+Product and price data comes from the configured Google Sheet.
+For product price answers:
+- first use product sheet tools;
+- use current sheet values as source of truth;
+- if there are multiple matches, show a short list and ask which model is needed.
 
 """
 
@@ -719,6 +742,47 @@ For messages to all employees or departments, use group or broadcast tools, not 
         Show one Telegram target by target_key.
         """
         return await get_telegram_target(target_key=target_key)
+
+    @function_tool()
+    async def show_product_sheet_status(
+        self,
+        context: RunContext,
+        force_refresh: bool = False,
+    ) -> str:
+        """
+        Show product sheet status, headers, and loaded row count.
+        Use this to verify that product prices are available.
+        """
+        return await get_product_sheet_status(force_refresh=force_refresh)
+
+    @function_tool()
+    async def show_product_prices(
+        self,
+        context: RunContext,
+        limit: int = 50,
+        force_refresh: bool = False,
+    ) -> str:
+        """
+        Show products and prices from the Google Sheet.
+        """
+        return await list_product_prices(limit=limit, force_refresh=force_refresh)
+
+    @function_tool()
+    async def search_product_price(
+        self,
+        context: RunContext,
+        query: str,
+        limit: int = 25,
+        force_refresh: bool = False,
+    ) -> str:
+        """
+        Search products and prices by model code, product name, category, size, or price.
+        """
+        return await search_product_prices(
+            query=query,
+            limit=limit,
+            force_refresh=force_refresh,
+        )
 
 
 def _clip_text(value: str, limit: int) -> str:

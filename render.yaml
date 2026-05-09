@@ -35,6 +35,12 @@ services:
         value: gemini-embedding-2
       - key: MEMORY_EMBEDDING_DIM
         value: "768"
+      - key: MILA_PRODUCT_SHEET_URL
+        sync: false
+      - key: MILA_PRODUCT_SHEET_TIMEOUT_SECONDS
+        value: "20"
+      - key: MILA_PRODUCT_SHEET_CACHE_TTL_SECONDS
+        value: "60"
       - key: CORS_ALLOW_ORIGINS
         sync: false
       - key: DATABASE_URL
@@ -74,6 +80,12 @@ services:
         value: gemini-embedding-2
       - key: MEMORY_EMBEDDING_DIM
         value: "768"
+      - key: MILA_PRODUCT_SHEET_URL
+        sync: false
+      - key: MILA_PRODUCT_SHEET_TIMEOUT_SECONDS
+        value: "20"
+      - key: MILA_PRODUCT_SHEET_CACHE_TTL_SECONDS
+        value: "60"
       - key: DATABASE_URL
         fromDatabase:
           name: mila-postgres
